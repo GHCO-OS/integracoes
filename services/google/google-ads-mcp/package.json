@@ -1,0 +1,31 @@
+{
+  "name": "@ghco/google-ads-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only MCP server for Google Ads reporting.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy": "wrangler deploy -c wrangler.jsonc",
+    "oauth:ads": "node scripts/google-ads-oauth-helper.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "dotenv": "17.2.3",
+    "express": "5.2.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.6",
+    "@types/node": "25.0.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "wrangler": "4.71.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "google-ads-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-05-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "routes": [
+    {
+      "pattern": "google-ads-mcp.cuiabar.com",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "GOOGLE_ADS_API_VERSION": "v24"
+  }
+}

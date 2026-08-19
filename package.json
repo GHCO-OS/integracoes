@@ -1,0 +1,16 @@
+{
+  "name": "@ghco/integracoes",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "services/google/google-ads-mcp",
+    "services/meta/meta-ads-actions"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
