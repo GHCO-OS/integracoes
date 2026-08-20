@@ -1,8 +1,9 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "meta-ads-actions",
-  "main": "src/worker.ts",
-  "compatibility_date": "2026-05-04",
+  "main": "src/worker-v2.ts",
+  "compatibility_date": "2026-08-20",
+  "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "enabled": true
   },
