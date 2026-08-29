@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { GoogleAdsClient } from "./googleAdsClient.js";
 import { assertMutationConfirmed } from "./mutationGuard.js";
+import { customerMatchOperations } from "./customerMatch.js";
 
 type McpMetadata = {
   localUrl?: string;
@@ -12,7 +13,7 @@ type McpMetadata = {
 export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata): McpServer {
   const server = new McpServer({
     name: "ghco-google-ads",
-    version: "0.2.0"
+    version: "0.3.0"
   });
 
   server.registerTool(
@@ -238,6 +239,86 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
           responseContentType
         })
       );
+    }
+  );
+
+  server.registerTool(
+    "create_customer_match_job",
+    {
+      title: "Criar job de Customer Match",
+      description: "Cria um job de audiencia CRM. Exige consentimento declarado e confirmacao de escrita.",
+      inputSchema: {
+        userList: z.string().regex(/^customers\/\d+\/userLists\/\d+$/),
+        customerId: z.string().optional(),
+        adUserData: z.enum(["GRANTED", "DENIED"]),
+        adPersonalization: z.enum(["GRANTED", "DENIED"]),
+        confirmWrite: z.literal("CONFIRM_GOOGLE_ADS_WRITE")
+      }
+    },
+    async ({ userList, customerId, adUserData, adPersonalization }) =>
+      textResult(await googleAds.createCustomerMatchJob(userList, customerId, { adUserData, adPersonalization }))
+  );
+
+  server.registerTool(
+    "add_customer_match_users",
+    {
+      title: "Enviar lote CRM ao Customer Match",
+      description: "Normaliza e aplica SHA-256 a email/telefone no Worker. Aceita ate 10 mil registros por chamada; repita para arquivos grandes.",
+      inputSchema: {
+        jobResourceName: z.string().regex(/^customers\/\d+\/offlineUserDataJobs\/\d+$/),
+        records: z.array(z.object({
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          thirdPartyUserId: z.string().optional()
+        })).min(1).max(10_000),
+        action: z.enum(["create", "remove"]).default("create"),
+        enablePartialFailure: z.boolean().default(true),
+        confirmWrite: z.string()
+      }
+    },
+    async ({ jobResourceName, records, action, enablePartialFailure, confirmWrite }) => {
+      const expected = action === "remove" ? "CONFIRM_GOOGLE_ADS_DELETE" : "CONFIRM_GOOGLE_ADS_WRITE";
+      if (confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+      return textResult(await googleAds.addCustomerMatchOperations(
+        jobResourceName,
+        await customerMatchOperations(records, action),
+        enablePartialFailure
+      ));
+    }
+  );
+
+  server.registerTool(
+    "run_customer_match_job",
+    {
+      title: "Executar job de Customer Match",
+      description: "Inicia o processamento do job apos todos os lotes terem sido enviados.",
+      inputSchema: {
+        jobResourceName: z.string().regex(/^customers\/\d+\/offlineUserDataJobs\/\d+$/),
+        confirmWrite: z.literal("CONFIRM_GOOGLE_ADS_WRITE")
+      }
+    },
+    async ({ jobResourceName }) => textResult(await googleAds.runCustomerMatchJob(jobResourceName))
+  );
+
+  server.registerTool(
+    "upload_crm_click_conversions",
+    {
+      title: "Enviar conversoes offline do CRM",
+      description: "Envia conversoes de clique do CRM. Valida por padrao; execucao real exige confirmacao.",
+      inputSchema: {
+        conversions: z.array(z.record(z.string(), z.unknown())).min(1).max(2000),
+        customerId: z.string().optional(),
+        partialFailure: z.boolean().default(true),
+        validateOnly: z.boolean().default(true),
+        jobId: z.number().int().positive().optional(),
+        confirmWrite: z.string().optional()
+      }
+    },
+    async ({ conversions, customerId, partialFailure, validateOnly, jobId, confirmWrite }) => {
+      if (!validateOnly && confirmWrite !== "CONFIRM_GOOGLE_ADS_WRITE") {
+        throw new Error("Upload bloqueado. Use confirmWrite=CONFIRM_GOOGLE_ADS_WRITE.");
+      }
+      return textResult(await googleAds.uploadClickConversions(conversions, { customerId, partialFailure, validateOnly, jobId }));
     }
   );
 

@@ -24,3 +24,14 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Health: `ok=true`, modo `read-write-controlled`, API Google Ads `v24`.
 - OpenAPI: versão `0.2.0` com `POST /actions/mutate` ativo.
 - Segurança: chamada não autenticada de mutação retorna `401`.
+
+## Customer Match e CRM publicado em 2026-08-29
+
+- Customer Match ativado por `OfflineUserDataJob`, com criação, lotes de inclusão/remoção e execução do job.
+- Identificadores de email e telefone são normalizados e recebem SHA-256 no Worker; PII em claro não é registrada.
+- Cargas de CRM grandes usam chamadas sucessivas de até 10.000 identificadores por lote.
+- Upload de conversões offline de clique ativado, com `validateOnly=true` por padrão.
+- Escrita exige `CONFIRM_GOOGLE_ADS_WRITE`; remoção exige `CONFIRM_GOOGLE_ADS_DELETE`.
+- Worker: `google-ads-mcp`; domínio: `https://google-ads-mcp.cuiabar.com`.
+- Cloudflare Version ID: `1ed7bab4-8025-404b-aebf-2b3e5e8d29db`.
+- Health após o deploy: `ok=true`, sem secrets ausentes, API Google Ads `v24`.

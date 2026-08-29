@@ -75,6 +75,20 @@ curl http://localhost:8788/health
 - `get_budget_status`
 - `run_readonly_gaql`
 - `mutate_google_ads`
+- `create_customer_match_job`
+- `add_customer_match_users`
+- `run_customer_match_job`
+- `upload_crm_click_conversions`
+
+## Customer Match, CRM e cargas grandes
+
+- O Customer Match usa `OfflineUserDataJob`: crie o job, envie lotes e depois execute o job.
+- Cada chamada aceita ate 10.000 registros. Arquivos grandes devem ser lidos pelo CRM e enviados em chamadas sucessivas; o job pode acumular varios lotes.
+- Email e telefone sao normalizados e transformados em SHA-256 dentro do Worker; PII em claro nao e registrada.
+- Telefone deve usar E.164. Consentimento `adUserData` e `adPersonalization` e obrigatorio ao criar o job.
+- Inclusao exige `CONFIRM_GOOGLE_ADS_WRITE`; remocao exige `CONFIRM_GOOGLE_ADS_DELETE`.
+- Conversoes offline do CRM usam validacao por padrao e suportam ate 2.000 conversoes por chamada.
+- A conta Google Ads ainda precisa estar elegivel para Customer Match. Upload arbitrario de midia pesada nao faz parte desse fluxo e continua sujeito aos limites de assets da API.
 
 ## Escrita e exclusão
 
