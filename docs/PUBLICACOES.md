@@ -35,3 +35,13 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Worker: `google-ads-mcp`; domínio: `https://google-ads-mcp.cuiabar.com`.
 - Cloudflare Version ID: `1ed7bab4-8025-404b-aebf-2b3e5e8d29db`.
 - Health após o deploy: `ok=true`, sem secrets ausentes, API Google Ads `v24`.
+
+## Merchant Center preparado em 2026-08-29
+
+- Merchant API adicionada ao mesmo MCP Google Ads.
+- Ferramentas de produtos, fontes de dados e relatórios registradas.
+- Escrita e exclusão usam confirmações específicas do Merchant.
+- Autorização real depende do secret `GOOGLE_MERCHANT_REFRESH_TOKEN` com escopo `content`.
+- O Business Profile não foi incluído porque requer aprovação separada do Google.
+- Cloudflare Version ID: `b1917c4b-66f9-447d-967f-63aa0f0d3c9e`.
+- Health: `ok=true`; `merchantConfigured=false` até concluir o OAuth Merchant.

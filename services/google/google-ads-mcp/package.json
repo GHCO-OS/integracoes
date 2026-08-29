@@ -1,6 +1,6 @@
 {
   "name": "@ghco/google-ads-mcp",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Google Ads MCP and GPT Actions service with controlled read, create, update and remove capabilities.",
@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test src/*.test.ts",
     "deploy": "wrangler deploy -c wrangler.jsonc",
-    "oauth:ads": "node scripts/google-ads-oauth-helper.mjs"
+    "oauth:ads": "node scripts/google-ads-oauth-helper.mjs",
+    "oauth:merchant": "node scripts/google-merchant-oauth-helper.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",

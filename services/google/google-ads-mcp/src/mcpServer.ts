@@ -3,6 +3,7 @@ import { z } from "zod";
 import { GoogleAdsClient } from "./googleAdsClient.js";
 import { assertMutationConfirmed } from "./mutationGuard.js";
 import { customerMatchOperations } from "./customerMatch.js";
+import { MerchantClient } from "./merchantClient.js";
 
 type McpMetadata = {
   localUrl?: string;
@@ -10,7 +11,7 @@ type McpMetadata = {
   apiVersion: string;
 };
 
-export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata): McpServer {
+export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata, merchant?: MerchantClient): McpServer {
   const server = new McpServer({
     name: "ghco-google-ads",
     version: "0.3.0"
@@ -322,6 +323,56 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     }
   );
 
+  server.registerTool("merchant_list_products", {
+    title: "Listar produtos do Merchant Center",
+    description: "Lista produtos processados, status e problemas do catalogo.",
+    inputSchema: { merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).listProducts(merchantAccountId, pageSize, pageToken)));
+
+  server.registerTool("merchant_list_data_sources", {
+    title: "Listar fontes do Merchant Center",
+    description: "Lista fontes de dados usadas pelo catalogo.",
+    inputSchema: { merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).listDataSources(merchantAccountId, pageSize, pageToken)));
+
+  server.registerTool("merchant_upsert_product", {
+    title: "Inserir ou substituir produto Merchant",
+    description: "Insere um ProductInput em fonte API. Exige confirmacao de escrita.",
+    inputSchema: { merchantAccountId: z.string().optional(), dataSource: z.string(), productInput: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ merchantAccountId, dataSource, productInput }) => textResult(await requireMerchant(merchant).insertProduct(dataSource, productInput, merchantAccountId)));
+
+  server.registerTool("merchant_patch_product", {
+    title: "Atualizar produto Merchant",
+    description: "Atualiza campos selecionados de um ProductInput.",
+    inputSchema: { name: z.string(), dataSource: z.string(), updateMask: z.string().min(1), productInput: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ name, dataSource, updateMask, productInput }) => textResult(await requireMerchant(merchant).patchProduct(name, productInput, updateMask, dataSource)));
+
+  server.registerTool("merchant_delete_product", {
+    title: "Excluir produto Merchant",
+    description: "Exclui um ProductInput da fonte indicada.",
+    inputSchema: { name: z.string(), dataSource: z.string(), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_DELETE") }
+  }, async ({ name, dataSource }) => textResult(await requireMerchant(merchant).deleteProduct(name, dataSource)));
+
+  server.registerTool("merchant_manage_data_source", {
+    title: "Criar ou atualizar fonte Merchant",
+    description: "Cria ou atualiza uma fonte de dados. action=create ou patch.",
+    inputSchema: { action: z.enum(["create", "patch"]), merchantAccountId: z.string().optional(), name: z.string().optional(), updateMask: z.string().optional(), dataSource: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ action, merchantAccountId, name, updateMask, dataSource }) => textResult(action === "create"
+    ? await requireMerchant(merchant).createDataSource(dataSource, merchantAccountId)
+    : await requireMerchant(merchant).patchDataSource(name ?? "", dataSource, updateMask ?? "")));
+
+  server.registerTool("merchant_delete_data_source", {
+    title: "Excluir fonte Merchant",
+    description: "Exclui uma fonte de dados e exige confirmacao destrutiva.",
+    inputSchema: { name: z.string(), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_DELETE") }
+  }, async ({ name }) => textResult(await requireMerchant(merchant).deleteDataSource(name)));
+
+  server.registerTool("merchant_search_reports", {
+    title: "Consultar relatorios Merchant",
+    description: "Executa consulta SELECT na Merchant Reports API.",
+    inputSchema: { query: z.string().min(1).max(12_000), merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ query, merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).searchReports(query, merchantAccountId, pageSize, pageToken)));
+
   server.registerResource(
     "install-info",
     "google-ads-mcp://install-info",
@@ -352,6 +403,11 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
   );
 
   return server;
+}
+
+function requireMerchant(merchant?: MerchantClient): MerchantClient {
+  if (!merchant) throw new Error("Merchant Center nao configurado neste ambiente.");
+  return merchant;
 }
 
 function textResult(value: unknown) {

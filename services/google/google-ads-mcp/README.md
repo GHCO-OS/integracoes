@@ -79,6 +79,22 @@ curl http://localhost:8788/health
 - `add_customer_match_users`
 - `run_customer_match_job`
 - `upload_crm_click_conversions`
+- `merchant_list_products`
+- `merchant_list_data_sources`
+- `merchant_upsert_product`
+- `merchant_patch_product`
+- `merchant_delete_product`
+- `merchant_manage_data_source`
+- `merchant_delete_data_source`
+- `merchant_search_reports`
+
+## Merchant Center
+
+O Merchant usa a API atual `merchantapi.googleapis.com` e o escopo OAuth `https://www.googleapis.com/auth/content`. Configure `GOOGLE_MERCHANT_REFRESH_TOKEN` e, opcionalmente, `GOOGLE_MERCHANT_ACCOUNT_ID`. Não exige a aprovação especial do Business Profile.
+
+- Escrita: `CONFIRM_GOOGLE_MERCHANT_WRITE`.
+- Exclusão: `CONFIRM_GOOGLE_MERCHANT_DELETE`.
+- Produtos só podem ser gravados em fontes do tipo API.
 
 ## Customer Match, CRM e cargas grandes
 

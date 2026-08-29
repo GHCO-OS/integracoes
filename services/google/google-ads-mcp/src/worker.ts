@@ -2,6 +2,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { GoogleAdsClient, normalizeCustomerId } from "./googleAdsClient.js";
 import { createGoogleAdsMcpServer } from "./mcpServer.js";
 import { assertMutationConfirmed } from "./mutationGuard.js";
+import { MerchantClient } from "./merchantClient.js";
 
 type Env = {
   GOOGLE_ADS_CLIENT_ID?: string;
@@ -12,6 +13,8 @@ type Env = {
   GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
   GOOGLE_ADS_API_VERSION?: string;
   MCP_BEARER_TOKEN?: string;
+  GOOGLE_MERCHANT_REFRESH_TOKEN?: string;
+  GOOGLE_MERCHANT_ACCOUNT_ID?: string;
 };
 
 type OAuthPayload = {
@@ -45,6 +48,7 @@ export default {
         mode: "read-write-controlled",
         endpoint: "https://google-ads-mcp.cuiabar.com/sse",
         apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24",
+        merchantConfigured: Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN),
         missingSecrets: missing
       });
     }
@@ -130,10 +134,16 @@ export default {
       loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
     });
 
+    const merchant = new MerchantClient({
+      clientId: env.GOOGLE_ADS_CLIENT_ID!,
+      clientSecret: env.GOOGLE_ADS_CLIENT_SECRET!,
+      refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN,
+      accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID
+    });
     const server = createGoogleAdsMcpServer(googleAds, {
       publicUrl: "https://google-ads-mcp.cuiabar.com/sse",
       apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24"
-    });
+    }, merchant);
 
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,

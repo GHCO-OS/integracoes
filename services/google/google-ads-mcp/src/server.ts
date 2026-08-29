@@ -3,6 +3,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { config } from "./config.js";
 import { GoogleAdsClient, normalizeCustomerId } from "./googleAdsClient.js";
 import { createGoogleAdsMcpServer } from "./mcpServer.js";
+import { MerchantClient } from "./merchantClient.js";
 
 const googleAds = new GoogleAdsClient({
   apiVersion: config.GOOGLE_ADS_API_VERSION,
@@ -12,6 +13,12 @@ const googleAds = new GoogleAdsClient({
   developerToken: config.GOOGLE_ADS_DEVELOPER_TOKEN,
   customerId: normalizeCustomerId(config.GOOGLE_ADS_CUSTOMER_ID),
   loginCustomerId: config.GOOGLE_ADS_LOGIN_CUSTOMER_ID
+});
+const merchant = new MerchantClient({
+  clientId: config.GOOGLE_ADS_CLIENT_ID,
+  clientSecret: config.GOOGLE_ADS_CLIENT_SECRET,
+  refreshToken: config.GOOGLE_MERCHANT_REFRESH_TOKEN,
+  accountId: config.GOOGLE_MERCHANT_ACCOUNT_ID
 });
 
 const app = express();
@@ -40,7 +47,7 @@ app.get("/sse", requireBearerToken, async (_req, res) => {
     localUrl: `http://localhost:${config.PORT}/sse`,
     publicUrl: "https://google-ads-mcp.cuiabar.com/sse",
     apiVersion: config.GOOGLE_ADS_API_VERSION
-  }).connect(transport);
+  }, merchant).connect(transport);
 });
 
 app.post("/messages", requireBearerToken, async (req, res) => {
