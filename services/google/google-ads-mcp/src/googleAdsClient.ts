@@ -17,6 +17,14 @@ type OAuthTokenResponse = {
 };
 
 export type SearchStreamResult = Record<string, unknown>;
+export type MutateOperation = Record<string, unknown>;
+
+export type MutateOptions = {
+  customerId?: string;
+  partialFailure?: boolean;
+  validateOnly?: boolean;
+  responseContentType?: "RESOURCE_NAME_ONLY" | "MUTABLE_RESOURCE";
+};
 
 export class GoogleAdsClient {
   private accessToken: string | null = null;
@@ -66,6 +74,39 @@ export class GoogleAdsClient {
       }
       return [];
     });
+  }
+
+  async mutate(operations: MutateOperation[], options: MutateOptions = {}): Promise<unknown> {
+    if (operations.length < 1 || operations.length > 1000) {
+      throw new Error("operations deve conter entre 1 e 1000 operacoes.");
+    }
+
+    const accessToken = await this.getAccessToken();
+    const cleanCustomerId = normalizeCustomerId(options.customerId ?? this.config.customerId);
+    const body = {
+      mutateOperations: operations,
+      partialFailure: options.partialFailure ?? false,
+      validateOnly: options.validateOnly ?? true,
+      responseContentType: options.responseContentType ?? "RESOURCE_NAME_ONLY"
+    };
+    const serializedBody = JSON.stringify(body);
+    if (serializedBody.length > 1_000_000) {
+      throw new Error("Payload de mutate excede o limite local de 1 MB.");
+    }
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/${this.config.apiVersion}/customers/${cleanCustomerId}/googleAds:mutate`,
+      {
+        method: "POST",
+        headers: {
+          ...this.headers(accessToken),
+          "content-type": "application/json"
+        },
+        body: serializedBody
+      }
+    );
+
+    return this.parseResponse(response);
   }
 
   private async getAccessToken(): Promise<string> {

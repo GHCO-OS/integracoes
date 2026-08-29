@@ -1,6 +1,6 @@
-# Google Ads MCP somente leitura
+# Google Ads MCP e GPT Actions
 
-Servidor MCP remoto para instalar no ChatGPT e consultar Google Ads sem expor funcoes de escrita.
+Servidor MCP remoto e API para consultar, criar, atualizar e remover recursos Google Ads com confirmação explícita.
 
 ## Link MCP
 
@@ -74,5 +74,14 @@ curl http://localhost:8788/health
 - `get_geo_performance`
 - `get_budget_status`
 - `run_readonly_gaql`
+- `mutate_google_ads`
 
-Todas as ferramentas usam apenas endpoints de leitura. O servidor nao implementa `mutate`, criacao, edicao, pausa, ativacao, exclusao ou alteracao de verba.
+## Escrita e exclusão
+
+A ferramenta `mutate_google_ads` e o endpoint `POST /actions/mutate` usam `GoogleAdsService.Mutate` e aceitam qualquer `MutateOperation` suportada pela versão configurada da API.
+
+- `validateOnly` assume `true` e valida sem executar.
+- Criação e atualização reais exigem `confirmWrite=CONFIRM_GOOGLE_ADS_WRITE`.
+- Qualquer operação contendo `remove` exige `confirmWrite=CONFIRM_GOOGLE_ADS_DELETE`.
+- Cada requisição aceita de 1 a 1000 operações e payload de até 1 MB.
+- `partialFailure` assume `false`.

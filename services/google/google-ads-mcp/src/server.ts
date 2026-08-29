@@ -23,7 +23,7 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     service: "google-ads-mcp",
-    mode: "read-only",
+    mode: "read-write-controlled",
     apiVersion: config.GOOGLE_ADS_API_VERSION
   });
 });
@@ -61,7 +61,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 app.listen(config.PORT, () => {
-  console.log(`Google Ads MCP read-only em http://localhost:${config.PORT}/sse`);
+  console.log(`Google Ads MCP read-write-controlled em http://localhost:${config.PORT}/sse`);
 });
 
 function requireBearerToken(req: Request, res: Response, next: NextFunction): void {

@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { GoogleAdsClient } from "./googleAdsClient.js";
+import { assertMutationConfirmed } from "./mutationGuard.js";
 
 type McpMetadata = {
   localUrl?: string;
@@ -10,8 +11,8 @@ type McpMetadata = {
 
 export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata): McpServer {
   const server = new McpServer({
-    name: "cuiabar-google-ads-readonly",
-    version: "0.1.0"
+    name: "ghco-google-ads",
+    version: "0.2.0"
   });
 
   server.registerTool(
@@ -212,12 +213,40 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     async ({ query, customerId }) => textResult(await googleAds.searchStream(query, customerId))
   );
 
+  server.registerTool(
+    "mutate_google_ads",
+    {
+      title: "Criar, atualizar ou remover recursos Google Ads",
+      description:
+        "Executa GoogleAdsService.Mutate para qualquer recurso suportado. Por padrao apenas valida. Escrita exige CONFIRM_GOOGLE_ADS_WRITE; operacoes remove exigem CONFIRM_GOOGLE_ADS_DELETE.",
+      inputSchema: {
+        operations: z.array(z.record(z.string(), z.unknown())).min(1).max(1000),
+        customerId: z.string().optional(),
+        partialFailure: z.boolean().default(false),
+        validateOnly: z.boolean().default(true),
+        responseContentType: z.enum(["RESOURCE_NAME_ONLY", "MUTABLE_RESOURCE"]).default("RESOURCE_NAME_ONLY"),
+        confirmWrite: z.string().optional()
+      }
+    },
+    async ({ operations, customerId, partialFailure, validateOnly, responseContentType, confirmWrite }) => {
+      assertMutationConfirmed(operations, validateOnly, confirmWrite);
+      return textResult(
+        await googleAds.mutate(operations, {
+          customerId,
+          partialFailure,
+          validateOnly,
+          responseContentType
+        })
+      );
+    }
+  );
+
   server.registerResource(
     "install-info",
     "google-ads-mcp://install-info",
     {
       title: "Informacoes de instalacao",
-      description: "Resumo de instalacao do MCP Google Ads read-only.",
+      description: "Resumo de instalacao do MCP Google Ads com leitura e escrita controlada.",
       mimeType: "application/json"
     },
     async (uri) => ({
@@ -228,7 +257,7 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
           text: JSON.stringify(
             {
               service: "google-ads-mcp",
-              mode: "read-only",
+              mode: "read-write-controlled",
               localUrl: metadata.localUrl,
               publicUrl: metadata.publicUrl,
               apiVersion: metadata.apiVersion

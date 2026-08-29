@@ -12,3 +12,9 @@
 Cada deploy deve acrescentar data, commit, serviço, ambiente, responsável, resultado do health check e eventual rollback.
 
 O código migrado ainda precisa ser reconciliado com as versões ativas do Cloudflare assim que a autenticação Wrangler for renovada.
+
+## Alteração preparada em 2026-08-29
+
+- Google Ads MCP atualizado para modo `read-write-controlled`.
+- Adicionadas mutações genéricas para criação, atualização e remoção.
+- Deploy ainda não realizado; a versão pública continua dependendo da reconciliação com o Cloudflare.

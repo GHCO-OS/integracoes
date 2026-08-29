@@ -1,15 +1,15 @@
-# Google Ads MCP somente leitura
+# Google Ads MCP e GPT Actions
 
 ## Objetivo
 
-Disponibilizar dados de Google Ads para o ChatGPT por MCP remoto, sem permitir escrita, pausa de campanhas, mudanca de verba ou qualquer chamada `mutate`.
+Disponibilizar leitura, criacao, atualizacao e remocao de recursos Google Ads por MCP remoto e GPT Actions, com validacao por padrao e confirmacao explicita para alteracoes reais.
 
 ## Local do servico
 
 Codigo-fonte:
 
 ```text
-services/google-ads-mcp/
+services/google/google-ads-mcp/
 ```
 
 Endpoint local:
@@ -57,12 +57,16 @@ Escopo OAuth necessario:
 https://www.googleapis.com/auth/adwords
 ```
 
-## Garantias de somente leitura
+## Leitura e mutacoes controladas
 
-- O servidor usa apenas `customers:listAccessibleCustomers` e `googleAds:searchStream`.
-- Nao existe ferramenta de `mutate`.
+- Leituras usam `customers:listAccessibleCustomers` e `googleAds:searchStream`.
 - A ferramenta generica `run_readonly_gaql` aceita apenas consultas iniciadas com `SELECT`.
 - Termos de escrita como `MUTATE`, `CREATE`, `UPDATE`, `DELETE`, `PAUSE`, `ENABLE`, `SET`, `INSERT`, `DROP` e similares sao bloqueados antes de chamar a API.
+- Escritas usam `GoogleAdsService.Mutate` pela ferramenta `mutate_google_ads` ou `POST /actions/mutate`.
+- `validateOnly=true` e o padrao e valida as operacoes sem alterar a conta.
+- Criacao e atualizacao reais exigem `confirmWrite=CONFIRM_GOOGLE_ADS_WRITE`.
+- Operacoes `remove` exigem `confirmWrite=CONFIRM_GOOGLE_ADS_DELETE`.
+- Cada chamada aceita no maximo 1000 operacoes e payload de 1 MB.
 
 ## Instalar no ChatGPT
 
@@ -93,7 +97,7 @@ Bearer
 ops-artifacts/google-ads-mcp/mcp-bearer-token.local
 ```
 
-6. Instrua o GPT a usar apenas leitura e nunca sugerir alterações diretas em campanhas sem validação humana.
+6. Instrua o GPT a sempre validar primeiro e solicitar confirmacao humana antes de executar mutacoes.
 
 Endpoints disponíveis para Actions:
 
@@ -104,6 +108,7 @@ Endpoints disponíveis para Actions:
 - `GET /actions/search-terms`
 - `GET /actions/budgets`
 - `POST /actions/gaql`
+- `POST /actions/mutate`
 
 ### Opção alternativa: MCP remoto
 
@@ -150,12 +155,12 @@ https://google-ads-mcp.cuiabar.com/sse
 Authorization: Bearer <MCP_BEARER_TOKEN>
 ```
 
-6. Atualizar a lista de ferramentas e manter apenas ferramentas de leitura habilitadas.
+6. Atualizar a lista de ferramentas e habilitar `mutate_google_ads` apenas para operadores autorizados.
 
 ## Validacao
 
 ```bash
-cd services/google-ads-mcp
+cd services/google/google-ads-mcp
 npm install
 npm run build
 npm start
@@ -172,7 +177,7 @@ curl http://localhost:8788/health
 Com um OAuth Client criado no Google Cloud para a API Google Ads, rode:
 
 ```bash
-cd services/google-ads-mcp
+cd services/google/google-ads-mcp
 $env:GOOGLE_ADS_CLIENT_ID="..."
 $env:GOOGLE_ADS_CLIENT_SECRET="..."
 npm run oauth:ads
