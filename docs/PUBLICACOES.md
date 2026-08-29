@@ -17,4 +17,10 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 
 - Google Ads MCP atualizado para modo `read-write-controlled`.
 - Adicionadas mutações genéricas para criação, atualização e remoção.
-- Deploy ainda não realizado; a versão pública continua dependendo da reconciliação com o Cloudflare.
+- Deploy realizado na conta `Cuiabar | GHCO`.
+- Worker: `google-ads-mcp`.
+- Domínio: `https://google-ads-mcp.cuiabar.com`.
+- Cloudflare Version ID: `0475a568-676e-4a4c-886b-64c2231e6286`.
+- Health: `ok=true`, modo `read-write-controlled`, API Google Ads `v24`.
+- OpenAPI: versão `0.2.0` com `POST /actions/mutate` ativo.
+- Segurança: chamada não autenticada de mutação retorna `401`.
