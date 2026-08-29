@@ -8,6 +8,7 @@ Este inventário contém somente nomes e finalidades. Valores reais devem ficar 
 - `GOOGLE_ADS_CLIENT_SECRET`: segredo do cliente OAuth.
 - `GOOGLE_MERCHANT_REFRESH_TOKEN`: refresh token OAuth com escopo `https://www.googleapis.com/auth/content`; nunca versionar.
 - `GOOGLE_MERCHANT_ACCOUNT_ID`: ID padrão do Merchant Center; não é segredo.
+- `GOOGLE_BUSINESS_REFRESH_TOKEN`: OAuth com escopo `business.manage`; nunca versionar.
 - `GOOGLE_ADS_REFRESH_TOKEN`: renovação do acesso Google Ads.
 - `GOOGLE_ADS_DEVELOPER_TOKEN`: token da API Google Ads.
 - `GOOGLE_ADS_CUSTOMER_ID`: conta alvo.

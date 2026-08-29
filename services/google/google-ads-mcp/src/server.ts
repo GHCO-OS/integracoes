@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { GoogleAdsClient, normalizeCustomerId } from "./googleAdsClient.js";
 import { createGoogleAdsMcpServer } from "./mcpServer.js";
 import { MerchantClient } from "./merchantClient.js";
+import { BusinessProfileClient } from "./businessProfileClient.js";
 
 const googleAds = new GoogleAdsClient({
   apiVersion: config.GOOGLE_ADS_API_VERSION,
@@ -20,6 +21,7 @@ const merchant = new MerchantClient({
   refreshToken: config.GOOGLE_MERCHANT_REFRESH_TOKEN,
   accountId: config.GOOGLE_MERCHANT_ACCOUNT_ID
 });
+const business = new BusinessProfileClient({ clientId: config.GOOGLE_ADS_CLIENT_ID, clientSecret: config.GOOGLE_ADS_CLIENT_SECRET, refreshToken: config.GOOGLE_BUSINESS_REFRESH_TOKEN });
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -47,7 +49,7 @@ app.get("/sse", requireBearerToken, async (_req, res) => {
     localUrl: `http://localhost:${config.PORT}/sse`,
     publicUrl: "https://google-ads-mcp.cuiabar.com/sse",
     apiVersion: config.GOOGLE_ADS_API_VERSION
-  }, merchant).connect(transport);
+  }, merchant, business).connect(transport);
 });
 
 app.post("/messages", requireBearerToken, async (req, res) => {

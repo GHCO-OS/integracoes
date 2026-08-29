@@ -12,6 +12,7 @@ const envSchema = z.object({
   MCP_BEARER_TOKEN: z.string().optional(),
   GOOGLE_MERCHANT_REFRESH_TOKEN: z.string().optional(),
   GOOGLE_MERCHANT_ACCOUNT_ID: z.string().optional(),
+  GOOGLE_BUSINESS_REFRESH_TOKEN: z.string().optional(),
   PORT: z.coerce.number().int().positive().default(8788)
 });
 

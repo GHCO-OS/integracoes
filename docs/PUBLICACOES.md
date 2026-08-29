@@ -45,3 +45,13 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - O Business Profile não foi incluído porque requer aprovação separada do Google.
 - Cloudflare Version ID: `b1917c4b-66f9-447d-967f-63aa0f0d3c9e`.
 - Health: `ok=true`; `merchantConfigured=false` até concluir o OAuth Merchant.
+
+## Business Profile preparado em 2026-08-29
+
+- Projeto Google Cloud auditado: `meucuiabar`.
+- Escopo `business.manage` já cadastrado no consentimento OAuth.
+- APIs ativas observadas: Account Management, Business Information, Performance, Google My Business, Notifications, Q&A e Verifications.
+- Ferramenta MCP adicionada para fichas, SEO local, horários, categorias, posts, mídia, avaliações, perguntas e performance.
+- Administradores e convites são bloqueados pelo conector.
+- Autorização operacional depende do secret `GOOGLE_BUSINESS_REFRESH_TOKEN`.
+- Cloudflare Version ID: `14a5cca7-85a4-4b5a-98ba-488958283629`.

@@ -87,6 +87,13 @@ curl http://localhost:8788/health
 - `merchant_manage_data_source`
 - `merchant_delete_data_source`
 - `merchant_search_reports`
+- `business_profile_request`
+
+## Google Business Profile
+
+O projeto Google Cloud precisa das APIs Business Profile e do escopo `https://www.googleapis.com/auth/business.manage`. Configure `GOOGLE_BUSINESS_REFRESH_TOKEN` após o consentimento OAuth.
+
+A ferramenta cobre contas, fichas, categorias, descrição, horários, posts, mídia, avaliações, perguntas e métricas de pesquisa/performance. Alteração exige `CONFIRM_GOOGLE_BUSINESS_WRITE`; exclusão exige `CONFIRM_GOOGLE_BUSINESS_DELETE`. Gestão de administradores e convites é bloqueada.
 
 ## Merchant Center
 

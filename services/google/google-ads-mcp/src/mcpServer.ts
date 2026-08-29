@@ -4,6 +4,7 @@ import { GoogleAdsClient } from "./googleAdsClient.js";
 import { assertMutationConfirmed } from "./mutationGuard.js";
 import { customerMatchOperations } from "./customerMatch.js";
 import { MerchantClient } from "./merchantClient.js";
+import { BusinessProfileClient, type BusinessProfileService } from "./businessProfileClient.js";
 
 type McpMetadata = {
   localUrl?: string;
@@ -11,7 +12,7 @@ type McpMetadata = {
   apiVersion: string;
 };
 
-export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata, merchant?: MerchantClient): McpServer {
+export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata, merchant?: MerchantClient, business?: BusinessProfileClient): McpServer {
   const server = new McpServer({
     name: "ghco-google-ads",
     version: "0.3.0"
@@ -373,6 +374,23 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     inputSchema: { query: z.string().min(1).max(12_000), merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
   }, async ({ query, merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).searchReports(query, merchantAccountId, pageSize, pageToken)));
 
+  server.registerTool("business_profile_request", {
+    title: "Gerenciar Google Business Profile",
+    description: "Acesso controlado a contas, fichas, SEO local, horarios, categorias, posts, imagens, avaliacoes, perguntas e metricas. Administradores e convites ficam bloqueados.",
+    inputSchema: {
+      service: z.enum(["accounts", "information", "business", "performance"]),
+      method: z.enum(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+      path: z.string().min(1).max(500),
+      query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+      body: z.record(z.string(), z.unknown()).optional(),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ service, method, path, query, body, confirmWrite }) => {
+    const expected = method === "DELETE" ? "CONFIRM_GOOGLE_BUSINESS_DELETE" : method === "GET" ? undefined : "CONFIRM_GOOGLE_BUSINESS_WRITE";
+    if (expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+    return textResult(await requireBusiness(business).request(service as BusinessProfileService, method, path, query, body));
+  });
+
   server.registerResource(
     "install-info",
     "google-ads-mcp://install-info",
@@ -408,6 +426,11 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
 function requireMerchant(merchant?: MerchantClient): MerchantClient {
   if (!merchant) throw new Error("Merchant Center nao configurado neste ambiente.");
   return merchant;
+}
+
+function requireBusiness(business?: BusinessProfileClient): BusinessProfileClient {
+  if (!business) throw new Error("Business Profile nao configurado neste ambiente.");
+  return business;
 }
 
 function textResult(value: unknown) {
