@@ -41,7 +41,7 @@ function assertAllowedPath(path: string): string {
   const allowed = [
     /^accounts(?:\/[^/?]+)?$/,
     /^accounts\/[^/?]+\/locations(?:\/[^/?]+)?(?::[A-Za-z]+)?$/,
-    /^accounts\/[^/?]+\/locations\/[^/?]+\/(?:reviews|localPosts|media|questions)(?:\/[^/?]+)?(?:\/reply|\/answers(?::[A-Za-z]+)?)?$/,
+    /^accounts\/[^/?]+\/locations\/[^/?]+\/(?:reviews|localPosts|media|questions)(?::[A-Za-z]+)?(?:\/[^/?]+)?(?:\/reply|\/answers(?::[A-Za-z]+)?)?$/,
     /^locations\/[^/?]+(?::[A-Za-z]+)?$/,
     /^locations\/[^/?]+\/(?:searchkeywords\/impressions\/monthly|dailyMetricsTimeSeries)$/
   ];
