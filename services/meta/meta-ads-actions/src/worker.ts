@@ -195,6 +195,51 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
     return json(await graph(env, "GET", `/${pageId}/feed`, { fields: url.searchParams.get("fields") || "id,message,created_time,permalink_url,story,attachments", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
   }
 
+  if (url.pathname === "/actions/facebook-list-posts" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/posts`, socialListQuery(url, "id,message,created_time,updated_time,permalink_url,full_picture,attachments{media,type,target,url},status_type,is_published"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-post" && request.method === "GET") {
+    const postId = requiredAliasedId(url, undefined, "postId", "post_id");
+    return json(await graph(env, "GET", `/${postId}`, { fields: url.searchParams.get("fields") || "id,message,created_time,updated_time,permalink_url,full_picture,attachments{media,type,target,url},status_type,is_published" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-photos" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/photos`, { ...socialListQuery(url, "id,name,created_time,updated_time,link,picture,images,album"), type: url.searchParams.get("type") || "uploaded" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-photo" && request.method === "GET") {
+    const photoId = requiredAliasedId(url, undefined, "photoId", "photo_id");
+    return json(await graph(env, "GET", `/${photoId}`, { fields: url.searchParams.get("fields") || "id,name,created_time,updated_time,link,picture,images,album" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-videos" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/videos`, socialListQuery(url, "id,title,description,created_time,updated_time,permalink_url,picture,source,length,status"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-video" && request.method === "GET") {
+    const videoId = requiredAliasedId(url, undefined, "videoId", "video_id");
+    return json(await graph(env, "GET", `/${videoId}`, { fields: url.searchParams.get("fields") || "id,title,description,created_time,updated_time,permalink_url,picture,source,length,status" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-reels" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/video_reels`, socialListQuery(url, "id,title,description,created_time,updated_time,permalink_url,picture,length,status"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-reel" && request.method === "GET") {
+    const reelId = requiredAliasedId(url, undefined, "reelId", "reel_id");
+    return json(await graph(env, "GET", `/${reelId}`, { fields: url.searchParams.get("fields") || "id,title,description,created_time,updated_time,permalink_url,picture,length,status" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-post-insights" && request.method === "GET") {
+    const postId = requiredAliasedId(url, undefined, "postId", "post_id");
+    return json(await graph(env, "GET", `/${postId}/insights`, { metric: url.searchParams.get("metric") || undefined, period: url.searchParams.get("period") || undefined, since: url.searchParams.get("since") || undefined, until: url.searchParams.get("until") || undefined }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
   if (url.pathname === "/actions/instagram-profile" && request.method === "GET") {
     const igId = requiredId(url, env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID, "instagramBusinessAccountId");
     return json(await graph(env, "GET", `/${igId}`, { fields: url.searchParams.get("fields") || "id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url" }));
@@ -203,6 +248,31 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/actions/instagram-media" && request.method === "GET") {
     const igId = requiredId(url, env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID, "instagramBusinessAccountId");
     return json(await graph(env, "GET", `/${igId}/media`, { fields: url.searchParams.get("fields") || "id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count", limit: limit(url, 100) }));
+  }
+
+  if (url.pathname === "/actions/instagram-list-media" && request.method === "GET") {
+    const igId = requiredAliasedId(url, env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID, "instagramBusinessAccountId", "ig_user_id");
+    return json(await graph(env, "GET", `/${igId}/media`, socialListQuery(url, "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count,children{id,media_type,media_url,thumbnail_url}")));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}`, { fields: url.searchParams.get("fields") || "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count" }));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media-children" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/children`, socialListQuery(url, "id,media_type,media_url,thumbnail_url,timestamp,permalink")));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media-insights" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/insights`, { metric: requiredQuery(url, "metric"), period: url.searchParams.get("period") || undefined }));
+  }
+
+  if (url.pathname === "/actions/instagram-list-comments" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/comments`, socialListQuery(url, "id,text,timestamp,username,like_count,replies{id,text,timestamp,username}")));
   }
 
   if (url.pathname === "/actions/comments" && request.method === "GET") {
@@ -311,6 +381,13 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/actions/delete-meta-content" && request.method === "POST") {
     const body = await readJson(request);
     return json(await graph(env, "DELETE", `/${requiredBodyString(body, "objectId")}`, {}, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (["/actions/facebook-delete-post", "/actions/facebook-delete-photo", "/actions/facebook-delete-video"].includes(url.pathname) && request.method === "POST") {
+    const body = await readJson(request);
+    const objectId = firstBodyString(body, ["objectId", "postId", "post_id", "photoId", "photo_id", "videoId", "video_id"]);
+    if (body.validateOnly === true) return json({ ok: true, validateOnly: true, method: "DELETE", objectId });
+    return json(await graph(env, "DELETE", `/${objectId}`, {}, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
   }
 
   if (url.pathname === "/actions/create-instagram-media-container" && request.method === "POST") {
@@ -619,6 +696,22 @@ function requiredId(url: URL, fallback: string | undefined, name: string): strin
   return value;
 }
 
+function requiredAliasedId(url: URL, fallback: string | undefined, ...names: string[]): string {
+  const value = names.map((name) => url.searchParams.get(name)).find(Boolean) || fallback;
+  if (!value) throw new Error(`${names.join("/")} nao configurado. Informe por parametro ou configure a secret/var correspondente.`);
+  return value;
+}
+
+function socialListQuery(url: URL, defaultFields: string): JsonObject {
+  return {
+    fields: url.searchParams.get("fields") || defaultFields,
+    limit: limit(url, 100),
+    after: url.searchParams.get("cursor") || url.searchParams.get("after") || undefined,
+    since: url.searchParams.get("since") || undefined,
+    until: url.searchParams.get("until") || undefined
+  };
+}
+
 function normalizeAdAccountId(value: string): string {
   const digits = value.replace(/\D/g, "");
   return `act_${digits}`;
@@ -663,6 +756,14 @@ function requiredBodyString(body: JsonObject, name: string): string {
   const value = body[name];
   if (typeof value !== "string" || !value) throw new Error(`${name} e obrigatorio.`);
   return value;
+}
+
+function firstBodyString(body: JsonObject, names: string[]): string {
+  for (const name of names) {
+    const value = body[name];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  throw new Error(`${names.join("/")} e obrigatorio.`);
 }
 
 async function readJson(request: Request): Promise<JsonObject> {
@@ -720,12 +821,14 @@ function openApiSchema(origin: string): JsonObject {
   });
   const idParam = (name: string, required = false) => ({ name, in: "query", required, schema: { type: "string" } });
   const listParams = [idParam("businessId"), { name: "fields", in: "query", required: false, schema: schema("string") }, { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
+  const socialPageListParams = [idParam("page_id"), idParam("fields"), idParam("cursor"), idParam("since"), idParam("until"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
+  const socialIgListParams = [idParam("ig_user_id"), idParam("fields"), idParam("cursor"), idParam("since"), idParam("until"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
 
   return {
     openapi: "3.1.0",
     info: {
       title: "Cuiabar Meta Ads API",
-      version: "0.3.0",
+      version: "0.4.0",
       description: "Autonomous Meta Graph/Marketing/Business Actions. Non-financial writes run directly; financial changes require explicit confirmation."
     },
     servers: [{ url: origin }],
@@ -764,8 +867,22 @@ function openApiSchema(origin: string): JsonObject {
       "/actions/pages": getPath("listMetaPages", "List Pages available to the token", [idParam("fields"), { name: "limit", in: "query", required: false, schema: { type: "integer" } }]),
       "/actions/page-profile": getPath("getMetaPageProfile", "Get Meta Page profile"),
       "/actions/page-feed": getPath("listMetaPageFeed", "List Page posts and attachments"),
+      "/actions/facebook-list-posts": getPath("facebook_list_posts", "List the Page organic post library", socialPageListParams),
+      "/actions/facebook-get-post": getPath("facebook_get_post", "Get one organic Page post", [idParam("post_id", true), idParam("fields")]),
+      "/actions/facebook-list-photos": getPath("facebook_list_page_photos", "List uploaded Page photos", [...socialPageListParams, idParam("type")]),
+      "/actions/facebook-get-photo": getPath("facebook_get_photo", "Get one Page photo", [idParam("photo_id", true), idParam("fields")]),
+      "/actions/facebook-list-videos": getPath("facebook_list_page_videos", "List Page videos", socialPageListParams),
+      "/actions/facebook-get-video": getPath("facebook_get_video", "Get one Page video", [idParam("video_id", true), idParam("fields")]),
+      "/actions/facebook-list-reels": getPath("facebook_list_page_reels", "List Page Reels exposed by the video_reels edge", socialPageListParams),
+      "/actions/facebook-get-reel": getPath("facebook_get_reel", "Get one Page Reel", [idParam("reel_id", true), idParam("fields")]),
+      "/actions/facebook-get-post-insights": getPath("facebook_get_post_insights", "Get insights for an organic Page post", [idParam("post_id", true), idParam("metric"), idParam("period"), idParam("since"), idParam("until")]),
       "/actions/instagram-profile": getPath("getMetaInstagramProfile", "Get Instagram business profile"),
       "/actions/instagram-media": getPath("listMetaInstagramMedia", "List Instagram media and engagement"),
+      "/actions/instagram-list-media": getPath("instagram_list_media", "List the professional Instagram organic media library", socialIgListParams),
+      "/actions/instagram-get-media": getPath("instagram_get_media", "Get one organic Instagram media object", [idParam("media_id", true), idParam("fields")]),
+      "/actions/instagram-get-media-children": getPath("instagram_get_media_children", "List carousel children for Instagram media", [idParam("media_id", true), idParam("fields"), idParam("cursor"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500 } }]),
+      "/actions/instagram-get-media-insights": getPath("instagram_get_media_insights", "Get organic Instagram media insights; metric is required and must suit the media type", [idParam("media_id", true), idParam("metric", true), idParam("period")]),
+      "/actions/instagram-list-comments": getPath("instagram_list_comments", "List comments and replies on organic Instagram media", [idParam("media_id", true), idParam("fields"), idParam("cursor"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500 } }]),
       "/actions/comments": getPath("listMetaComments", "List comments for a Page or Instagram object", [idParam("objectId", true), idParam("fields")]),
       "/actions/leadgen-forms": getPath("listMetaLeadgenForms", "List Page lead generation forms", [idParam("pageId"), idParam("fields")]),
       "/actions/leads": getPath("listMetaLeads", "Retrieve leads from a lead generation form", [idParam("formId", true), idParam("fields")]),
@@ -783,6 +900,9 @@ function openApiSchema(origin: string): JsonObject {
       "/actions/update-page-post": postPath("updateMetaPagePost", "Update a Page post autonomously", { postId: schema("string"), message: schema("string") }, ["postId"], true),
       "/actions/update-page-profile": postPath("updateMetaPageProfile", "Update Page metadata and CTA autonomously", { pageId: schema("string") }, [], true),
       "/actions/delete-meta-content": postPath("deleteMetaContent", "Delete supported Meta content autonomously", { objectId: schema("string") }, ["objectId"]),
+      "/actions/facebook-delete-post": postPath("facebook_delete_post", "Delete a Page post; validateOnly previews without deleting", { post_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["post_id"]),
+      "/actions/facebook-delete-photo": postPath("facebook_delete_photo", "Delete a Page photo; validateOnly previews without deleting", { photo_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["photo_id"]),
+      "/actions/facebook-delete-video": postPath("facebook_delete_video", "Delete a Page video or Reel; validateOnly previews without deleting", { video_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["video_id"]),
       "/actions/create-instagram-media-container": postPath("createInstagramMediaContainer", "Create Instagram publishing container", { instagramBusinessAccountId: schema("string") }, [], true),
       "/actions/publish-instagram-content": postPath("publishInstagramContent", "Publish an Instagram media container autonomously", { instagramBusinessAccountId: schema("string"), creation_id: schema("string") }, ["creation_id"]),
       "/actions/reply-comment": postPath("replyMetaComment", "Reply to a Page or Instagram comment autonomously", { commentId: schema("string"), message: schema("string") }, ["commentId", "message"]),

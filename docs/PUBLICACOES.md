@@ -64,3 +64,14 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - OpenAPI `0.3.0`, com 46 caminhos e endpoints dedicados para leads e operações sociais.
 - Cloudflare Version ID: `4ccb0363-5fa5-49c6-a97c-d9c1fefbeec5`.
 - Health: `ok=true`, API Graph `v25.0`, sem secrets obrigatórios ausentes.
+
+## Módulo Social Content da Meta preparado em 2026-09-07
+
+- OpenAPI atualizado para `0.4.0` com operações explícitas para a biblioteca orgânica.
+- Facebook: posts, fotos, vídeos, Reels, detalhes, insights e exclusões suportadas.
+- Instagram profissional: mídia, detalhes, carrosséis, insights e comentários.
+- Paginação por cursor e filtros `since`/`until` disponíveis para auditorias históricas.
+- Nenhum conteúdo real foi alterado ou excluído durante a validação.
+- Worker: `meta-ads-actions`; domínio: `https://meta-ads-actions.cuiabar.com`.
+- Cloudflare Version ID: `09aa1a34-9e32-4934-9667-5318b02d2184`.
+- Health: `ok=true`, modo `autonomous-non-financial`; OpenAPI `0.4.0` publicado.

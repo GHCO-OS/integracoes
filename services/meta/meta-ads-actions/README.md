@@ -31,6 +31,17 @@ API Key -> Bearer
 - Business e Ads: `business_management`, `ads_read`, `ads_management`, `pages_manage_ads`.
 - Leads: `leads_retrieval`.
 
+## Conteúdo social orgânico
+
+O OpenAPI 0.4.0 expõe ferramentas com nomes próprios para o GPT auditar a biblioteca orgânica, sem depender de IDs obtidos pelo módulo de anúncios:
+
+- Facebook: listar e ler posts, fotos, vídeos e Reels; ler insights de posts; excluir posts, fotos e vídeos suportados pela Graph API.
+- Instagram profissional: listar e ler mídia orgânica, filhos de carrossel, insights e comentários.
+- Paginação: `cursor` recebe o cursor `after` devolvido pela Meta; posts também aceitam `since` e `until`.
+- Exclusões Facebook aceitam `validateOnly=true` para simular a chamada sem apagar o objeto.
+
+A Instagram Graph API não oferece exclusão geral de mídia publicada. Por isso não é anunciado um `instagram_delete_media` que daria falsa garantia; o MCP mantém apenas as operações oficialmente suportadas pela conta e versão da API.
+
 O código expõe as operações, mas a Meta só libera cada uma quando o token e o app possuem a permissão correspondente e acesso ao ativo.
 
 ## Secrets e variaveis
