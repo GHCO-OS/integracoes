@@ -55,3 +55,12 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Administradores e convites são bloqueados pelo conector.
 - Autorização operacional depende do secret `GOOGLE_BUSINESS_REFRESH_TOKEN`.
 - Cloudflare Version ID: `14a5cca7-85a4-4b5a-98ba-488958283629`.
+
+## Meta autônoma não financeira publicada em 2026-09-07
+
+- Worker `meta-ads-actions` atualizado para modo `autonomous-non-financial`.
+- Pages, Instagram, Business, mensagens, comentários, leads, catálogos e fallback Graph executam sem confirmação adicional.
+- Única confirmação funcional mantida: `CONFIRM_META_FINANCIAL` para orçamento, lance, cobrança, pagamento, limite de gasto e ativação de entrega de anúncios.
+- OpenAPI `0.3.0`, com 46 caminhos e endpoints dedicados para leads e operações sociais.
+- Cloudflare Version ID: `4ccb0363-5fa5-49c6-a97c-d9c1fefbeec5`.
+- Health: `ok=true`, API Graph `v25.0`, sem secrets obrigatórios ausentes.

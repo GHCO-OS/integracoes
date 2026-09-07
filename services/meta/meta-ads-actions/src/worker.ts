@@ -73,12 +73,7 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "POST") {
     const input = (await request.clone().json().catch(() => ({}))) as JsonObject;
-    const isGenericRead =
-      (url.pathname === "/actions/meta-graph-request" || url.pathname === "/actions/meta-graph-request-v2") &&
-      String(input.method || "GET").toUpperCase() === "GET";
-    if (!isGenericRead && input.validateOnly !== true && input.confirmWrite !== "CONFIRM_WRITE") {
-      throw new Error("Escrita bloqueada. Use validateOnly=true para simular ou confirmWrite=CONFIRM_WRITE para executar.");
-    }
+    assertFinancialPolicy(url.pathname, input);
   }
 
   if (url.pathname === "/actions/health" && request.method === "GET") return health(env);
@@ -213,6 +208,16 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/actions/comments" && request.method === "GET") {
     const objectId = requiredId(url, undefined, "objectId");
     return json(await graph(env, "GET", `/${objectId}/comments`, { fields: url.searchParams.get("fields") || "id,message,from,created_time,comment_count,like_count,is_hidden", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/leadgen-forms" && request.method === "GET") {
+    const pageId = requiredId(url, env.META_PAGE_ID, "pageId");
+    return json(await graph(env, "GET", `/${pageId}/leadgen_forms`, { fields: url.searchParams.get("fields") || "id,name,status,created_time,leads_count", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/leads" && request.method === "GET") {
+    const formId = requiredId(url, undefined, "formId");
+    return json(await graph(env, "GET", `/${formId}/leads`, { fields: url.searchParams.get("fields") || "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id", limit: limit(url, 100) }));
   }
 
   if (url.pathname === "/actions/targeting-search" && request.method === "GET") {
@@ -537,10 +542,10 @@ function health(env: Env): Response {
   return json({
     ok: missing.length === 0,
     service: "meta-ads-actions",
-    mode: "read-write-controlled",
+    mode: "autonomous-non-financial",
     apiVersion: env.META_GRAPH_API_VERSION || "v25.0",
     endpoint: "https://meta-ads-actions.cuiabar.com/openapi.json",
-    capabilities: ["ads", "business", "pages", "instagram", "whatsapp_business", "catalogs", "generic_graph"],
+    capabilities: ["ads", "business", "pages", "instagram", "messaging", "leads", "whatsapp_business", "catalogs", "generic_graph"],
     configured: {
       businessId: Boolean(env.META_BUSINESS_ID),
       whatsappBusinessAccountId: Boolean(env.META_WHATSAPP_BUSINESS_ACCOUNT_ID),
@@ -550,6 +555,32 @@ function health(env: Env): Response {
     },
     missingSecrets: missing
   });
+}
+
+export function assertFinancialPolicy(actionPath: string, input: JsonObject): void {
+  if (input.validateOnly === true) return;
+  if (!isFinancialOperation(actionPath, input)) return;
+  if (input.confirmFinancial !== "CONFIRM_META_FINANCIAL") {
+    throw new Error("Operacao financeira bloqueada. Use validateOnly=true ou confirmFinancial=CONFIRM_META_FINANCIAL.");
+  }
+}
+
+export function isFinancialOperation(actionPath: string, input: unknown): boolean {
+  const financialKeys = /(?:^|_)(?:daily_budget|lifetime_budget|budget|budget_remaining|bid_amount|bid_strategy|spend_cap|amount_spent|funding_source|payment|billing|invoice|credit|currency)(?:$|_)/i;
+  const financialPath = /(?:funding|payment|billing|invoice|spend|budget|adaccount).*?(?:create|update|delete|set|limit)?/i;
+  if (financialPath.test(actionPath)) return true;
+
+  const visit = (value: unknown, key = ""): boolean => {
+    if (financialKeys.test(key)) return true;
+    if (/^(?:status|effective_status)$/i.test(key) && String(value).toUpperCase() === "ACTIVE") return true;
+    if (typeof value === "string" && /(?:daily_budget|lifetime_budget|spend_cap|funding_source|payment_methods?|billing|invoices?)/i.test(value)) return true;
+    if (Array.isArray(value)) return value.some((item) => visit(item));
+    if (value && typeof value === "object") {
+      return Object.entries(value as JsonObject).some(([nestedKey, nested]) => visit(nested, nestedKey));
+    }
+    return false;
+  };
+  return visit(input);
 }
 
 function requireBearer(request: Request, env: Env): Response | null {
@@ -694,8 +725,8 @@ function openApiSchema(origin: string): JsonObject {
     openapi: "3.1.0",
     info: {
       title: "Cuiabar Meta Ads API",
-      version: "0.2.0",
-      description: "Meta Graph/Marketing/Business Actions for authenticated Cuiabar editors with controlled write access."
+      version: "0.3.0",
+      description: "Autonomous Meta Graph/Marketing/Business Actions. Non-financial writes run directly; financial changes require explicit confirmation."
     },
     servers: [{ url: origin }],
     security,
@@ -732,15 +763,31 @@ function openApiSchema(origin: string): JsonObject {
       "/actions/catalog-products": getPath("listMetaCatalogProducts", "List catalog products", [idParam("catalogId"), idParam("fields"), { name: "limit", in: "query", required: false, schema: { type: "integer" } }]),
       "/actions/pages": getPath("listMetaPages", "List Pages available to the token", [idParam("fields"), { name: "limit", in: "query", required: false, schema: { type: "integer" } }]),
       "/actions/page-profile": getPath("getMetaPageProfile", "Get Meta Page profile"),
+      "/actions/page-feed": getPath("listMetaPageFeed", "List Page posts and attachments"),
       "/actions/instagram-profile": getPath("getMetaInstagramProfile", "Get Instagram business profile"),
+      "/actions/instagram-media": getPath("listMetaInstagramMedia", "List Instagram media and engagement"),
+      "/actions/comments": getPath("listMetaComments", "List comments for a Page or Instagram object", [idParam("objectId", true), idParam("fields")]),
+      "/actions/leadgen-forms": getPath("listMetaLeadgenForms", "List Page lead generation forms", [idParam("pageId"), idParam("fields")]),
+      "/actions/leads": getPath("listMetaLeads", "Retrieve leads from a lead generation form", [idParam("formId", true), idParam("fields")]),
       "/actions/targeting-search": getPath("searchMetaTargeting", "Search Meta targeting descriptors"),
       "/actions/resolve-geo-location": getPath("resolveMetaGeoLocation", "Resolve Meta geo targeting location"),
       "/actions/meta-graph-request-v2": postPath("metaGraphRequestV2", "Generic Meta Graph request with JSON string fallbacks", graphRequestProperties(true), ["path"], true),
-      "/actions/batch-graph-request": postPath("batchMetaGraphRequest", "Batch Meta Graph requests", { requests: { type: "array", maxItems: 50, items: { type: "object", additionalProperties: true } }, validateOnly: { type: "boolean", default: true }, confirmWrite: schema("string") }, ["requests"]),
+      "/actions/batch-graph-request": postPath("batchMetaGraphRequest", "Batch Meta Graph requests; non-financial writes execute autonomously", { requests: { type: "array", maxItems: 50, items: { type: "object", additionalProperties: true } }, validateOnly: { type: "boolean", default: false }, confirmFinancial: schema("string") }, ["requests"]),
       "/actions/create-full-meta-campaign-v2": postPath("createFullMetaCampaignV2", "Create full campaign with JSON string fallbacks", fullCampaignProperties(true), [], true),
       "/actions/create-ad-in-adset": postPath("createMetaAdInExistingAdSet", "Create a Meta ad in an existing ad set", { adAccountId: schema("string"), adSetId: schema("string"), pageId: schema("string"), linkUrl: schema("string"), adName: schema("string"), creativeName: schema("string"), message: schema("string"), headline: schema("string"), description: schema("string"), imageUrl: schema("string"), imageHash: schema("string"), videoId: schema("string"), thumbnailUrl: schema("string"), callToActionType: schema("string"), adStatus: { type: "string", enum: ["PAUSED", "ACTIVE"], default: "PAUSED" }, validateOnly: { type: "boolean", default: true } }, ["adAccountId", "adSetId", "pageId", "linkUrl", "adName", "message"]),
       "/actions/upload-ad-image": postPath("uploadMetaAdImageByUrl", "Upload Meta ad image by URL", { adAccountId: schema("string"), imageUrl: schema("string") }, ["imageUrl"]),
-      "/actions/upload-ad-video": postPath("uploadMetaAdVideoByUrl", "Upload Meta ad video by URL", { adAccountId: schema("string"), videoUrl: schema("string"), title: schema("string"), description: schema("string") }, ["videoUrl"])
+      "/actions/upload-ad-video": postPath("uploadMetaAdVideoByUrl", "Upload Meta ad video by URL", { adAccountId: schema("string"), videoUrl: schema("string"), title: schema("string"), description: schema("string") }, ["videoUrl"]),
+      "/actions/create-page-post": postPath("createMetaPagePost", "Create a Page post autonomously", { pageId: schema("string"), message: schema("string"), link: schema("string"), published: schema("boolean") }),
+      "/actions/create-page-photo": postPath("createMetaPagePhoto", "Publish a Page photo autonomously", { pageId: schema("string"), url: schema("string"), caption: schema("string") }),
+      "/actions/create-page-video": postPath("createMetaPageVideo", "Publish a Page video autonomously", { pageId: schema("string"), file_url: schema("string"), title: schema("string"), description: schema("string") }),
+      "/actions/update-page-post": postPath("updateMetaPagePost", "Update a Page post autonomously", { postId: schema("string"), message: schema("string") }, ["postId"], true),
+      "/actions/update-page-profile": postPath("updateMetaPageProfile", "Update Page metadata and CTA autonomously", { pageId: schema("string") }, [], true),
+      "/actions/delete-meta-content": postPath("deleteMetaContent", "Delete supported Meta content autonomously", { objectId: schema("string") }, ["objectId"]),
+      "/actions/create-instagram-media-container": postPath("createInstagramMediaContainer", "Create Instagram publishing container", { instagramBusinessAccountId: schema("string") }, [], true),
+      "/actions/publish-instagram-content": postPath("publishInstagramContent", "Publish an Instagram media container autonomously", { instagramBusinessAccountId: schema("string"), creation_id: schema("string") }, ["creation_id"]),
+      "/actions/reply-comment": postPath("replyMetaComment", "Reply to a Page or Instagram comment autonomously", { commentId: schema("string"), message: schema("string") }, ["commentId", "message"]),
+      "/actions/moderate-comment": postPath("moderateMetaComment", "Hide, unhide or manage a comment autonomously", { commentId: schema("string"), is_hidden: schema("boolean") }, ["commentId"]),
+      "/actions/send-meta-message": postPath("sendMetaMessage", "Send a Page or Instagram supported message autonomously", { recipient: { type: "object", additionalProperties: true }, message: { type: "object", additionalProperties: true } }, ["recipient", "message"])
     }
   };
 }
@@ -754,8 +801,8 @@ function graphRequestProperties(withFallbacks = false): JsonObject {
     body: { type: "object", additionalProperties: true },
     ...(withFallbacks ? { queryJson: schema("string"), bodyJson: schema("string") } : {}),
     idempotencyKey: schema("string"),
-    validateOnly: { type: "boolean", default: true },
-    confirmWrite: schema("string")
+    validateOnly: { type: "boolean", default: false },
+    confirmFinancial: schema("string", "Required only for financial operations: CONFIRM_META_FINANCIAL")
   };
 }
 
@@ -765,8 +812,8 @@ function fullCampaignProperties(withFallbacks = false): JsonObject {
     campaign: { type: "object", additionalProperties: true },
     adsets: { type: "array", items: { type: "object", additionalProperties: true } },
     ...(withFallbacks ? { campaignJson: schema("string"), adsetsJson: schema("string") } : {}),
-    validateOnly: { type: "boolean", default: true },
-    confirmWrite: schema("string")
+    validateOnly: { type: "boolean", default: false },
+    confirmFinancial: schema("string", "Required when budgets, bids, spend or ACTIVE delivery are requested")
   };
 }
 
