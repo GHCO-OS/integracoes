@@ -75,3 +75,12 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Worker: `meta-ads-actions`; domínio: `https://meta-ads-actions.cuiabar.com`.
 - Cloudflare Version ID: `09aa1a34-9e32-4934-9667-5318b02d2184`.
 - Health: `ok=true`, modo `autonomous-non-financial`; OpenAPI `0.4.0` publicado.
+
+## Meta Pub publicado em 2026-09-07
+
+- Novo Worker independente `meta-pub`, focado exclusivamente na presença pública de Facebook e Instagram.
+- Domínio: `https://meta-pub.cuiabar.com`; OpenAPI: `https://meta-pub.cuiabar.com/openapi.json`.
+- Biblioteca orgânica, publicação, edição, exclusão Facebook, respostas, moderação, desempenho e Instagram Discovery por hashtags.
+- Conexão interna ao Worker `meta-ads-actions`; o mesmo Bearer do GPT é encaminhado sem duplicar secrets.
+- Cloudflare Version ID: `3dcf3673-9837-437f-a765-f47cae73fcf1`.
+- Health: `ok=true`; OpenAPI `0.1.0`; chamadas sociais sem autenticação retornam `401`.

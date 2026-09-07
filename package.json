@@ -4,7 +4,8 @@
   "private": true,
   "workspaces": [
     "services/google/google-ads-mcp",
-    "services/meta/meta-ads-actions"
+    "services/meta/meta-ads-actions",
+    "services/meta/meta-pub"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
