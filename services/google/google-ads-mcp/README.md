@@ -87,17 +87,25 @@ curl http://localhost:8788/health
 - `merchant_manage_data_source`
 - `merchant_delete_data_source`
 - `merchant_search_reports`
+- `merchant_get_product`
+- `merchant_api_request` — cobertura das sub-APIs oficiais de contas, produtos, fontes, estoques local/regional, promoções, diagnósticos, relatórios, conversões, notificações, regiões, avaliações e Product Studio
 - `business_profile_request`
+- `business_get_food_menus`
+- `business_update_food_menus`
 
 ## Google Business Profile
 
 O projeto Google Cloud precisa das APIs Business Profile e do escopo `https://www.googleapis.com/auth/business.manage`. Configure `GOOGLE_BUSINESS_REFRESH_TOKEN` após o consentimento OAuth.
+
+Cardápios usam `accounts/{accountId}/locations/{locationId}/foodMenus`. A ficha precisa retornar `canHaveFoodMenus=true`. Itens podem conter nome, preço/moeda, descrição, nutrição, porção, rendimento e `mediaKeys` de fotos previamente enviadas à ficha.
 
 A ferramenta cobre contas, fichas, categorias, descrição, horários, posts, mídia, avaliações, perguntas e métricas de pesquisa/performance. Alteração exige `CONFIRM_GOOGLE_BUSINESS_WRITE`; exclusão exige `CONFIRM_GOOGLE_BUSINESS_DELETE`. Gestão de administradores e convites é bloqueada.
 
 ## Merchant Center
 
 O Merchant usa a API atual `merchantapi.googleapis.com` e o escopo OAuth `https://www.googleapis.com/auth/content`. Configure `GOOGLE_MERCHANT_REFRESH_TOKEN` e, opcionalmente, `GOOGLE_MERCHANT_ACCOUNT_ID`. Não exige a aprovação especial do Business Profile.
+
+As operações genéricas de escrita usam `validateOnly=true` por padrão. Execução real exige `CONFIRM_GOOGLE_MERCHANT_WRITE` ou `CONFIRM_GOOGLE_MERCHANT_DELETE`; no Business Profile, `CONFIRM_GOOGLE_BUSINESS_WRITE` ou `CONFIRM_GOOGLE_BUSINESS_DELETE`.
 
 - Escrita: `CONFIRM_GOOGLE_MERCHANT_WRITE`.
 - Exclusão: `CONFIRM_GOOGLE_MERCHANT_DELETE`.

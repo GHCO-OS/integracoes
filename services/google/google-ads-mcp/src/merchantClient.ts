@@ -16,6 +16,11 @@ export class MerchantClient {
     return this.request("GET", `/products/v1/accounts/${this.account(accountId)}/products`, undefined, { pageSize, pageToken });
   }
 
+  async getProduct(name: string): Promise<unknown> {
+    assertResource(name, /^accounts\/\d+\/products\/.+$/, "product name");
+    return this.request("GET", `/products/v1/${name}`);
+  }
+
   async listDataSources(accountId?: string, pageSize = 100, pageToken?: string): Promise<unknown> {
     return this.request("GET", `/datasources/v1/accounts/${this.account(accountId)}/dataSources`, undefined, { pageSize, pageToken });
   }
@@ -56,6 +61,12 @@ export class MerchantClient {
     return this.request("POST", `/reports/v1/accounts/${this.account(accountId)}/reports:search`, { query, pageSize, pageToken });
   }
 
+  async rawRequest(method: "GET" | "POST" | "PATCH" | "DELETE", path: string, query: Record<string, unknown> = {}, body?: unknown, validateOnly = false): Promise<unknown> {
+    const cleanPath = assertMerchantPath(path);
+    if (validateOnly && method !== "GET") return { ok: true, validateOnly: true, method, path: cleanPath, query, body };
+    return this.request(method, `/${cleanPath}`, body, query);
+  }
+
   private account(value?: string): string {
     const accountId = (value ?? this.config.accountId ?? "").replace(/\D/g, "");
     if (!accountId) throw new Error("Informe merchantAccountId ou configure GOOGLE_MERCHANT_ACCOUNT_ID.");
@@ -83,6 +94,15 @@ export class MerchantClient {
     if (!response.ok) throw new Error(`Merchant API ${response.status}: ${JSON.stringify(payload)}`);
     return payload;
   }
+}
+
+export function assertMerchantPath(path: string): string {
+  const clean = path.replace(/^\/+/, "");
+  const allowedApi = /^(accounts|conversions|datasources|inventories|issueresolution|lfp|notifications|ordertracking|products|promotions|productstudio|quota|regions|reports|reviews|termsOfService)\/v(?:1|1alpha|1beta)\//;
+  if (!allowedApi.test(clean) || !/^[A-Za-z0-9._~:\-/]+$/.test(clean) || clean.includes("..")) {
+    throw new Error("Caminho Merchant API invalido ou fora das sub-APIs autorizadas.");
+  }
+  return clean;
 }
 
 function assertResource(value: string, pattern: RegExp, label: string): void {

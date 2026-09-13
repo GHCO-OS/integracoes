@@ -84,3 +84,12 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Conexão interna ao Worker `meta-ads-actions`; o mesmo Bearer do GPT é encaminhado sem duplicar secrets.
 - Cloudflare Version ID: `3dcf3673-9837-437f-a765-f47cae73fcf1`.
 - Health: `ok=true`; OpenAPI `0.1.0`; chamadas sociais sem autenticação retornam `401`.
+
+## Merchant e Business Profile ampliados em 2026-09-12
+
+- Worker `google-ads-mcp` ampliado com acesso controlado às sub-APIs Merchant de contas, produtos, fontes, inventários, promoções, diagnósticos, relatórios, conversões, notificações, regiões, avaliações e Product Studio.
+- Business Profile recebeu ferramentas dedicadas para leitura e atualização integral de cardápios (`FoodMenus`), incluindo seções, itens, preços, descrições, nutrição, porções e fotos por `mediaKey`.
+- Escritas genéricas simulam por padrão; confirmações específicas continuam obrigatórias para alterações e exclusões reais.
+- 12 testes automatizados aprovados, incluindo simulação de produto/cardápio e bloqueios contra caminhos externos, travessia e gestão de administradores.
+- Cloudflare Version ID: `8fc3a0b5-5270-4f43-91ba-f8a1817d4230`.
+- Sonda publicada: Business Profile configurado e alcançável; Merchant aguarda autorização do refresh token com escopo `content`.

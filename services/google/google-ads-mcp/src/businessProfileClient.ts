@@ -34,15 +34,24 @@ export class BusinessProfileClient {
     if (!response.ok) throw new Error(`Business Profile API ${response.status}: ${JSON.stringify(payload)}`);
     return payload;
   }
+
+  async safeRequest(service: BusinessProfileService, method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE", path: string, query: Record<string, unknown> = {}, body?: unknown, validateOnly = false): Promise<unknown> {
+    const cleanPath = assertAllowedPath(path);
+    if (validateOnly && method !== "GET") return { ok: true, validateOnly: true, service, method, path: cleanPath, query, body };
+    return this.request(service, method, cleanPath, query, body);
+  }
 }
 
-function assertAllowedPath(path: string): string {
+export function assertAllowedPath(path: string): string {
   const clean = path.replace(/^\/+/, "");
   const allowed = [
     /^accounts(?:\/[^/?]+)?$/,
     /^accounts\/[^/?]+\/locations(?:\/[^/?]+)?(?::[A-Za-z]+)?$/,
     /^accounts\/[^/?]+\/locations\/[^/?]+\/(?:reviews|localPosts|media|questions)(?::[A-Za-z]+)?(?:\/[^/?]+)?(?:\/reply|\/answers(?::[A-Za-z]+)?)?$/,
+    /^accounts\/[^/?]+\/locations\/[^/?]+\/foodMenus$/,
+    /^(?:attributes|categories|chains|googleLocations)(?:\/[^/?]+)?(?::[A-Za-z]+)?$/,
     /^locations\/[^/?]+(?::[A-Za-z]+)?$/,
+    /^locations\/[^/?]+\/(?:attributes|voiceOfMerchantState)(?::[A-Za-z]+)?$/,
     /^locations\/[^/?]+\/(?:searchkeywords\/impressions\/monthly|dailyMetricsTimeSeries)$/
   ];
   if (!allowed.some((pattern) => pattern.test(clean)) || /(?:admins|invitations)/i.test(clean)) {

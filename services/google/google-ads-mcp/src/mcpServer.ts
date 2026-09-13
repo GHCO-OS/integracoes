@@ -330,6 +330,12 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     inputSchema: { merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
   }, async ({ merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).listProducts(merchantAccountId, pageSize, pageToken)));
 
+  server.registerTool("merchant_get_product", {
+    title: "Consultar produto processado",
+    description: "Retorna o produto final processado pelo Merchant, incluindo status e problemas de qualidade.",
+    inputSchema: { name: z.string().regex(/^accounts\/\d+\/products\/.+$/) }
+  }, async ({ name }) => textResult(await requireMerchant(merchant).getProduct(name)));
+
   server.registerTool("merchant_list_data_sources", {
     title: "Listar fontes do Merchant Center",
     description: "Lista fontes de dados usadas pelo catalogo.",
@@ -374,6 +380,44 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     inputSchema: { query: z.string().min(1).max(12_000), merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
   }, async ({ query, merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).searchReports(query, merchantAccountId, pageSize, pageToken)));
 
+  server.registerTool("merchant_api_request", {
+    title: "Acesso completo a Merchant API",
+    description: "Opera as sub-APIs oficiais de contas, produtos, fontes, estoque local/regional, promoções, diagnósticos, relatórios, conversões, notificações, regiões, avaliações e Product Studio. Escritas simulam por padrão.",
+    inputSchema: {
+      method: z.enum(["GET", "POST", "PATCH", "DELETE"]),
+      path: z.string().min(1).max(1000).describe("Caminho relativo, por exemplo products/v1/accounts/123/products ou inventories/v1/accounts/123/products/en~BR~sku/localInventories:insert"),
+      query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+      body: z.record(z.string(), z.unknown()).optional(),
+      validateOnly: z.boolean().default(true),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ method, path, query, body, validateOnly, confirmWrite }) => {
+    const expected = method === "DELETE" ? "CONFIRM_GOOGLE_MERCHANT_DELETE" : method === "GET" ? undefined : "CONFIRM_GOOGLE_MERCHANT_WRITE";
+    if (!validateOnly && expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+    return textResult(await requireMerchant(merchant).rawRequest(method, path, query, body, validateOnly));
+  });
+
+  server.registerTool("business_get_food_menus", {
+    title: "Ler cardapios do Perfil da Empresa",
+    description: "Lê cardápios, seções, itens, preços, descrições, nutrição e fotos associadas de uma ficha elegível.",
+    inputSchema: { accountId: z.string().min(1), locationId: z.string().min(1) }
+  }, async ({ accountId, locationId }) => textResult(await requireBusiness(business).request("business", "GET", `accounts/${accountId}/locations/${locationId}/foodMenus`)));
+
+  server.registerTool("business_update_food_menus", {
+    title: "Criar ou substituir cardapios",
+    description: "Atualiza os Food Menus completos da ficha. Permite nomes, preços, moeda, descrições, seções, nutrição, porções e mediaKeys. Simula por padrão.",
+    inputSchema: {
+      accountId: z.string().min(1),
+      locationId: z.string().min(1),
+      foodMenus: z.record(z.string(), z.unknown()),
+      validateOnly: z.boolean().default(true),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ accountId, locationId, foodMenus, validateOnly, confirmWrite }) => {
+    if (!validateOnly && confirmWrite !== "CONFIRM_GOOGLE_BUSINESS_WRITE") throw new Error("Operacao bloqueada. Use confirmWrite=CONFIRM_GOOGLE_BUSINESS_WRITE.");
+    return textResult(await requireBusiness(business).safeRequest("business", "PATCH", `accounts/${accountId}/locations/${locationId}/foodMenus`, {}, foodMenus, validateOnly));
+  });
+
   server.registerTool("business_profile_request", {
     title: "Gerenciar Google Business Profile",
     description: "Acesso controlado a contas, fichas, SEO local, horarios, categorias, posts, imagens, avaliacoes, perguntas e metricas. Administradores e convites ficam bloqueados.",
@@ -383,12 +427,13 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
       path: z.string().min(1).max(500),
       query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
       body: z.record(z.string(), z.unknown()).optional(),
+      validateOnly: z.boolean().default(true),
       confirmWrite: z.string().optional()
     }
-  }, async ({ service, method, path, query, body, confirmWrite }) => {
+  }, async ({ service, method, path, query, body, validateOnly, confirmWrite }) => {
     const expected = method === "DELETE" ? "CONFIRM_GOOGLE_BUSINESS_DELETE" : method === "GET" ? undefined : "CONFIRM_GOOGLE_BUSINESS_WRITE";
-    if (expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
-    return textResult(await requireBusiness(business).request(service as BusinessProfileService, method, path, query, body));
+    if (!validateOnly && expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+    return textResult(await requireBusiness(business).safeRequest(service as BusinessProfileService, method, path, query, body, validateOnly));
   });
 
   server.registerResource(

@@ -44,6 +44,7 @@ export default {
 
     if (url.pathname === "/" || url.pathname === "/health") {
       const missing = REQUIRED_ENV.filter((key) => !env[key]);
+      const commerceProbe = url.searchParams.get("probe") === "commerce" ? await probeCommerceConnections(env) : undefined;
       return json({
         ok: missing.length === 0,
         service: "google-ads-mcp",
@@ -52,6 +53,7 @@ export default {
         apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24",
         merchantConfigured: Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN),
         businessProfileConfigured: Boolean(env.GOOGLE_BUSINESS_REFRESH_TOKEN),
+        commerceProbe,
         missingSecrets: missing
       });
     }
@@ -158,6 +160,27 @@ export default {
     return transport.handleRequest(request);
   }
 };
+
+async function probeCommerceConnections(env: Env): Promise<Record<string, unknown>> {
+  const merchant = new MerchantClient({ clientId: env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN, accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID });
+  const business = new BusinessProfileClient({ clientId: env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_BUSINESS_REFRESH_TOKEN });
+  return {
+    merchant: await connectionProbe(Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN), () => merchant.rawRequest("GET", "accounts/v1/accounts", { pageSize: 1 })),
+    businessProfile: await connectionProbe(Boolean(env.GOOGLE_BUSINESS_REFRESH_TOKEN), () => business.request("accounts", "GET", "accounts", { pageSize: 1 }))
+  };
+}
+
+async function connectionProbe(configured: boolean, operation: () => Promise<unknown>): Promise<Record<string, unknown>> {
+  if (!configured) return { configured: false, reachable: false };
+  try {
+    await operation();
+    return { configured: true, reachable: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const status = message.match(/(?:API|OAuth)[^:]*:?\s*(\d{3})/)?.[1];
+    return { configured: true, reachable: false, status: status ? Number(status) : undefined };
+  }
+}
 
 async function requireBearerToken(request: Request, env: Env): Promise<Response | null> {
   if (!env.MCP_BEARER_TOKEN) {
