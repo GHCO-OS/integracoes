@@ -16,8 +16,8 @@ const googleAds = new GoogleAdsClient({
   loginCustomerId: config.GOOGLE_ADS_LOGIN_CUSTOMER_ID
 });
 const merchant = new MerchantClient({
-  clientId: config.GOOGLE_ADS_CLIENT_ID,
-  clientSecret: config.GOOGLE_ADS_CLIENT_SECRET,
+  clientId: config.GOOGLE_MERCHANT_CLIENT_ID ?? config.GOOGLE_ADS_CLIENT_ID,
+  clientSecret: config.GOOGLE_MERCHANT_CLIENT_SECRET ?? config.GOOGLE_ADS_CLIENT_SECRET,
   refreshToken: config.GOOGLE_MERCHANT_REFRESH_TOKEN,
   accountId: config.GOOGLE_MERCHANT_ACCOUNT_ID
 });

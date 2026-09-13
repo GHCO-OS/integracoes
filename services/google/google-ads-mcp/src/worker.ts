@@ -15,6 +15,8 @@ type Env = {
   GOOGLE_ADS_API_VERSION?: string;
   MCP_BEARER_TOKEN?: string;
   GOOGLE_MERCHANT_REFRESH_TOKEN?: string;
+  GOOGLE_MERCHANT_CLIENT_ID?: string;
+  GOOGLE_MERCHANT_CLIENT_SECRET?: string;
   GOOGLE_MERCHANT_ACCOUNT_ID?: string;
   GOOGLE_BUSINESS_REFRESH_TOKEN?: string;
 };
@@ -140,8 +142,8 @@ export default {
     });
 
     const merchant = new MerchantClient({
-      clientId: env.GOOGLE_ADS_CLIENT_ID!,
-      clientSecret: env.GOOGLE_ADS_CLIENT_SECRET!,
+      clientId: env.GOOGLE_MERCHANT_CLIENT_ID ?? env.GOOGLE_ADS_CLIENT_ID!,
+      clientSecret: env.GOOGLE_MERCHANT_CLIENT_SECRET ?? env.GOOGLE_ADS_CLIENT_SECRET!,
       refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN,
       accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID
     });
@@ -162,7 +164,7 @@ export default {
 };
 
 async function probeCommerceConnections(env: Env): Promise<Record<string, unknown>> {
-  const merchant = new MerchantClient({ clientId: env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN, accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID });
+  const merchant = new MerchantClient({ clientId: env.GOOGLE_MERCHANT_CLIENT_ID ?? env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_MERCHANT_CLIENT_SECRET ?? env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN, accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID });
   const business = new BusinessProfileClient({ clientId: env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_BUSINESS_REFRESH_TOKEN });
   return {
     merchant: await connectionProbe(Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN), () => merchant.rawRequest("GET", "accounts/v1/accounts", { pageSize: 1 })),

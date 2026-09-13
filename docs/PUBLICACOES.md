@@ -93,3 +93,13 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - 12 testes automatizados aprovados, incluindo simulação de produto/cardápio e bloqueios contra caminhos externos, travessia e gestão de administradores.
 - Cloudflare Version ID: `8fc3a0b5-5270-4f43-91ba-f8a1817d4230`.
 - Sonda publicada: Business Profile configurado e alcançável; Merchant aguarda autorização do refresh token com escopo `content`.
+
+## Merchant operacional em 2026-09-12
+
+- Merchant API ativada no projeto Google Cloud `meucuiabar`.
+- Projeto registrado oficialmente como desenvolvedor da conta Merchant, condição exigida pela API v1.
+- Cliente OAuth exclusivo do Merchant configurado no Worker, sem substituir as credenciais existentes de Ads e Business Profile.
+- Conta Merchant padrão configurada como secret; nenhum token ou client secret foi gravado no repositório.
+- Sonda real após a publicação: Merchant e Business Profile configurados e alcançáveis.
+- 12 testes automatizados aprovados, incluindo criação simulada de produto e atualização simulada de cardápio.
+- Cloudflare Version ID: `fee292f5-fef5-40f7-a676-b6b79cdef454`.

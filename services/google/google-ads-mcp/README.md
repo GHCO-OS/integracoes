@@ -103,7 +103,9 @@ A ferramenta cobre contas, fichas, categorias, descrição, horários, posts, m�
 
 ## Merchant Center
 
-O Merchant usa a API atual `merchantapi.googleapis.com` e o escopo OAuth `https://www.googleapis.com/auth/content`. Configure `GOOGLE_MERCHANT_REFRESH_TOKEN` e, opcionalmente, `GOOGLE_MERCHANT_ACCOUNT_ID`. Não exige a aprovação especial do Business Profile.
+O Merchant usa a API atual `merchantapi.googleapis.com` e o escopo OAuth `https://www.googleapis.com/auth/content`. Configure `GOOGLE_MERCHANT_REFRESH_TOKEN` e, opcionalmente, `GOOGLE_MERCHANT_ACCOUNT_ID`. Para manter Ads e Business Profile independentes, podem ser usados `GOOGLE_MERCHANT_CLIENT_ID` e `GOOGLE_MERCHANT_CLIENT_SECRET`; na ausência deles, o conector usa o cliente OAuth do Google Ads. Não exige a aprovação especial do Business Profile.
+
+Além de ativar `merchantapi.googleapis.com`, o projeto Google Cloud deve ser registrado como desenvolvedor na conta Merchant por `developerRegistration:registerGcp`. A conta precisa ser de produção e possuir site verificado.
 
 As operações genéricas de escrita usam `validateOnly=true` por padrão. Execução real exige `CONFIRM_GOOGLE_MERCHANT_WRITE` ou `CONFIRM_GOOGLE_MERCHANT_DELETE`; no Business Profile, `CONFIRM_GOOGLE_BUSINESS_WRITE` ou `CONFIRM_GOOGLE_BUSINESS_DELETE`.
 
