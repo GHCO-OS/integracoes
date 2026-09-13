@@ -3,6 +3,8 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { config } from "./config.js";
 import { GoogleAdsClient, normalizeCustomerId } from "./googleAdsClient.js";
 import { createGoogleAdsMcpServer } from "./mcpServer.js";
+import { MerchantClient } from "./merchantClient.js";
+import { BusinessProfileClient } from "./businessProfileClient.js";
 
 const googleAds = new GoogleAdsClient({
   apiVersion: config.GOOGLE_ADS_API_VERSION,
@@ -13,6 +15,13 @@ const googleAds = new GoogleAdsClient({
   customerId: normalizeCustomerId(config.GOOGLE_ADS_CUSTOMER_ID),
   loginCustomerId: config.GOOGLE_ADS_LOGIN_CUSTOMER_ID
 });
+const merchant = new MerchantClient({
+  clientId: config.GOOGLE_MERCHANT_CLIENT_ID ?? config.GOOGLE_ADS_CLIENT_ID,
+  clientSecret: config.GOOGLE_MERCHANT_CLIENT_SECRET ?? config.GOOGLE_ADS_CLIENT_SECRET,
+  refreshToken: config.GOOGLE_MERCHANT_REFRESH_TOKEN,
+  accountId: config.GOOGLE_MERCHANT_ACCOUNT_ID
+});
+const business = new BusinessProfileClient({ clientId: config.GOOGLE_ADS_CLIENT_ID, clientSecret: config.GOOGLE_ADS_CLIENT_SECRET, refreshToken: config.GOOGLE_BUSINESS_REFRESH_TOKEN });
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -23,7 +32,7 @@ app.get("/health", (_req, res) => {
   res.json({
     ok: true,
     service: "google-ads-mcp",
-    mode: "read-only",
+    mode: "read-write-controlled",
     apiVersion: config.GOOGLE_ADS_API_VERSION
   });
 });
@@ -40,7 +49,7 @@ app.get("/sse", requireBearerToken, async (_req, res) => {
     localUrl: `http://localhost:${config.PORT}/sse`,
     publicUrl: "https://google-ads-mcp.cuiabar.com/sse",
     apiVersion: config.GOOGLE_ADS_API_VERSION
-  }).connect(transport);
+  }, merchant, business).connect(transport);
 });
 
 app.post("/messages", requireBearerToken, async (req, res) => {
@@ -61,7 +70,7 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
 });
 
 app.listen(config.PORT, () => {
-  console.log(`Google Ads MCP read-only em http://localhost:${config.PORT}/sse`);
+  console.log(`Google Ads MCP read-write-controlled em http://localhost:${config.PORT}/sse`);
 });
 
 function requireBearerToken(req: Request, res: Response, next: NextFunction): void {

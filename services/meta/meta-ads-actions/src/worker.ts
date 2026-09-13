@@ -73,12 +73,7 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
 
   if (request.method === "POST") {
     const input = (await request.clone().json().catch(() => ({}))) as JsonObject;
-    const isGenericRead =
-      (url.pathname === "/actions/meta-graph-request" || url.pathname === "/actions/meta-graph-request-v2") &&
-      String(input.method || "GET").toUpperCase() === "GET";
-    if (!isGenericRead && input.validateOnly !== true && input.confirmWrite !== "CONFIRM_WRITE") {
-      throw new Error("Escrita bloqueada. Use validateOnly=true para simular ou confirmWrite=CONFIRM_WRITE para executar.");
-    }
+    assertFinancialPolicy(url.pathname, input);
   }
 
   if (url.pathname === "/actions/health" && request.method === "GET") return health(env);
@@ -200,6 +195,51 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
     return json(await graph(env, "GET", `/${pageId}/feed`, { fields: url.searchParams.get("fields") || "id,message,created_time,permalink_url,story,attachments", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
   }
 
+  if (url.pathname === "/actions/facebook-list-posts" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/posts`, socialListQuery(url, "id,message,created_time,updated_time,permalink_url,full_picture,attachments{media,type,target,url},status_type,is_published"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-post" && request.method === "GET") {
+    const postId = requiredAliasedId(url, undefined, "postId", "post_id");
+    return json(await graph(env, "GET", `/${postId}`, { fields: url.searchParams.get("fields") || "id,message,created_time,updated_time,permalink_url,full_picture,attachments{media,type,target,url},status_type,is_published" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-photos" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/photos`, { ...socialListQuery(url, "id,name,created_time,updated_time,link,picture,images,album"), type: url.searchParams.get("type") || "uploaded" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-photo" && request.method === "GET") {
+    const photoId = requiredAliasedId(url, undefined, "photoId", "photo_id");
+    return json(await graph(env, "GET", `/${photoId}`, { fields: url.searchParams.get("fields") || "id,name,created_time,updated_time,link,picture,images,album" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-videos" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/videos`, socialListQuery(url, "id,title,description,created_time,updated_time,permalink_url,picture,source,length,status"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-video" && request.method === "GET") {
+    const videoId = requiredAliasedId(url, undefined, "videoId", "video_id");
+    return json(await graph(env, "GET", `/${videoId}`, { fields: url.searchParams.get("fields") || "id,title,description,created_time,updated_time,permalink_url,picture,source,length,status" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-list-reels" && request.method === "GET") {
+    const pageId = requiredAliasedId(url, env.META_PAGE_ID, "pageId", "page_id");
+    return json(await graph(env, "GET", `/${pageId}/video_reels`, socialListQuery(url, "id,title,description,created_time,updated_time,permalink_url,picture,length,status"), env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-reel" && request.method === "GET") {
+    const reelId = requiredAliasedId(url, undefined, "reelId", "reel_id");
+    return json(await graph(env, "GET", `/${reelId}`, { fields: url.searchParams.get("fields") || "id,title,description,created_time,updated_time,permalink_url,picture,length,status" }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/facebook-get-post-insights" && request.method === "GET") {
+    const postId = requiredAliasedId(url, undefined, "postId", "post_id");
+    return json(await graph(env, "GET", `/${postId}/insights`, { metric: url.searchParams.get("metric") || undefined, period: url.searchParams.get("period") || undefined, since: url.searchParams.get("since") || undefined, until: url.searchParams.get("until") || undefined }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
   if (url.pathname === "/actions/instagram-profile" && request.method === "GET") {
     const igId = requiredId(url, env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID, "instagramBusinessAccountId");
     return json(await graph(env, "GET", `/${igId}`, { fields: url.searchParams.get("fields") || "id,username,name,biography,website,followers_count,follows_count,media_count,profile_picture_url" }));
@@ -210,9 +250,44 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
     return json(await graph(env, "GET", `/${igId}/media`, { fields: url.searchParams.get("fields") || "id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count", limit: limit(url, 100) }));
   }
 
+  if (url.pathname === "/actions/instagram-list-media" && request.method === "GET") {
+    const igId = requiredAliasedId(url, env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID, "instagramBusinessAccountId", "ig_user_id");
+    return json(await graph(env, "GET", `/${igId}/media`, socialListQuery(url, "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count,children{id,media_type,media_url,thumbnail_url}")));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}`, { fields: url.searchParams.get("fields") || "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,username,like_count,comments_count" }));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media-children" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/children`, socialListQuery(url, "id,media_type,media_url,thumbnail_url,timestamp,permalink")));
+  }
+
+  if (url.pathname === "/actions/instagram-get-media-insights" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/insights`, { metric: requiredQuery(url, "metric"), period: url.searchParams.get("period") || undefined }));
+  }
+
+  if (url.pathname === "/actions/instagram-list-comments" && request.method === "GET") {
+    const mediaId = requiredAliasedId(url, undefined, "mediaId", "media_id");
+    return json(await graph(env, "GET", `/${mediaId}/comments`, socialListQuery(url, "id,text,timestamp,username,like_count,replies{id,text,timestamp,username}")));
+  }
+
   if (url.pathname === "/actions/comments" && request.method === "GET") {
     const objectId = requiredId(url, undefined, "objectId");
     return json(await graph(env, "GET", `/${objectId}/comments`, { fields: url.searchParams.get("fields") || "id,message,from,created_time,comment_count,like_count,is_hidden", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/leadgen-forms" && request.method === "GET") {
+    const pageId = requiredId(url, env.META_PAGE_ID, "pageId");
+    return json(await graph(env, "GET", `/${pageId}/leadgen_forms`, { fields: url.searchParams.get("fields") || "id,name,status,created_time,leads_count", limit: limit(url, 100) }, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (url.pathname === "/actions/leads" && request.method === "GET") {
+    const formId = requiredId(url, undefined, "formId");
+    return json(await graph(env, "GET", `/${formId}/leads`, { fields: url.searchParams.get("fields") || "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id", limit: limit(url, 100) }));
   }
 
   if (url.pathname === "/actions/targeting-search" && request.method === "GET") {
@@ -306,6 +381,13 @@ async function handleAction(request: Request, env: Env): Promise<Response> {
   if (url.pathname === "/actions/delete-meta-content" && request.method === "POST") {
     const body = await readJson(request);
     return json(await graph(env, "DELETE", `/${requiredBodyString(body, "objectId")}`, {}, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
+  }
+
+  if (["/actions/facebook-delete-post", "/actions/facebook-delete-photo", "/actions/facebook-delete-video"].includes(url.pathname) && request.method === "POST") {
+    const body = await readJson(request);
+    const objectId = firstBodyString(body, ["objectId", "postId", "post_id", "photoId", "photo_id", "videoId", "video_id"]);
+    if (body.validateOnly === true) return json({ ok: true, validateOnly: true, method: "DELETE", objectId });
+    return json(await graph(env, "DELETE", `/${objectId}`, {}, env.META_PAGE_ACCESS_TOKEN || env.META_ACCESS_TOKEN));
   }
 
   if (url.pathname === "/actions/create-instagram-media-container" && request.method === "POST") {
@@ -537,10 +619,10 @@ function health(env: Env): Response {
   return json({
     ok: missing.length === 0,
     service: "meta-ads-actions",
-    mode: "read-write-controlled",
+    mode: "autonomous-non-financial",
     apiVersion: env.META_GRAPH_API_VERSION || "v25.0",
     endpoint: "https://meta-ads-actions.cuiabar.com/openapi.json",
-    capabilities: ["ads", "business", "pages", "instagram", "whatsapp_business", "catalogs", "generic_graph"],
+    capabilities: ["ads", "business", "pages", "instagram", "messaging", "leads", "whatsapp_business", "catalogs", "generic_graph"],
     configured: {
       businessId: Boolean(env.META_BUSINESS_ID),
       whatsappBusinessAccountId: Boolean(env.META_WHATSAPP_BUSINESS_ACCOUNT_ID),
@@ -550,6 +632,32 @@ function health(env: Env): Response {
     },
     missingSecrets: missing
   });
+}
+
+export function assertFinancialPolicy(actionPath: string, input: JsonObject): void {
+  if (input.validateOnly === true) return;
+  if (!isFinancialOperation(actionPath, input)) return;
+  if (input.confirmFinancial !== "CONFIRM_META_FINANCIAL") {
+    throw new Error("Operacao financeira bloqueada. Use validateOnly=true ou confirmFinancial=CONFIRM_META_FINANCIAL.");
+  }
+}
+
+export function isFinancialOperation(actionPath: string, input: unknown): boolean {
+  const financialKeys = /(?:^|_)(?:daily_budget|lifetime_budget|budget|budget_remaining|bid_amount|bid_strategy|spend_cap|amount_spent|funding_source|payment|billing|invoice|credit|currency)(?:$|_)/i;
+  const financialPath = /(?:funding|payment|billing|invoice|spend|budget|adaccount).*?(?:create|update|delete|set|limit)?/i;
+  if (financialPath.test(actionPath)) return true;
+
+  const visit = (value: unknown, key = ""): boolean => {
+    if (financialKeys.test(key)) return true;
+    if (/^(?:status|effective_status)$/i.test(key) && String(value).toUpperCase() === "ACTIVE") return true;
+    if (typeof value === "string" && /(?:daily_budget|lifetime_budget|spend_cap|funding_source|payment_methods?|billing|invoices?)/i.test(value)) return true;
+    if (Array.isArray(value)) return value.some((item) => visit(item));
+    if (value && typeof value === "object") {
+      return Object.entries(value as JsonObject).some(([nestedKey, nested]) => visit(nested, nestedKey));
+    }
+    return false;
+  };
+  return visit(input);
 }
 
 function requireBearer(request: Request, env: Env): Response | null {
@@ -586,6 +694,22 @@ function requiredId(url: URL, fallback: string | undefined, name: string): strin
   const value = url.searchParams.get(name) || fallback;
   if (!value) throw new Error(`${name} nao configurado. Informe por parametro ou configure a secret/var correspondente.`);
   return value;
+}
+
+function requiredAliasedId(url: URL, fallback: string | undefined, ...names: string[]): string {
+  const value = names.map((name) => url.searchParams.get(name)).find(Boolean) || fallback;
+  if (!value) throw new Error(`${names.join("/")} nao configurado. Informe por parametro ou configure a secret/var correspondente.`);
+  return value;
+}
+
+function socialListQuery(url: URL, defaultFields: string): JsonObject {
+  return {
+    fields: url.searchParams.get("fields") || defaultFields,
+    limit: limit(url, 100),
+    after: url.searchParams.get("cursor") || url.searchParams.get("after") || undefined,
+    since: url.searchParams.get("since") || undefined,
+    until: url.searchParams.get("until") || undefined
+  };
 }
 
 function normalizeAdAccountId(value: string): string {
@@ -632,6 +756,14 @@ function requiredBodyString(body: JsonObject, name: string): string {
   const value = body[name];
   if (typeof value !== "string" || !value) throw new Error(`${name} e obrigatorio.`);
   return value;
+}
+
+function firstBodyString(body: JsonObject, names: string[]): string {
+  for (const name of names) {
+    const value = body[name];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  throw new Error(`${names.join("/")} e obrigatorio.`);
 }
 
 async function readJson(request: Request): Promise<JsonObject> {
@@ -689,13 +821,15 @@ function openApiSchema(origin: string): JsonObject {
   });
   const idParam = (name: string, required = false) => ({ name, in: "query", required, schema: { type: "string" } });
   const listParams = [idParam("businessId"), { name: "fields", in: "query", required: false, schema: schema("string") }, { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
+  const socialPageListParams = [idParam("page_id"), idParam("fields"), idParam("cursor"), idParam("since"), idParam("until"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
+  const socialIgListParams = [idParam("ig_user_id"), idParam("fields"), idParam("cursor"), idParam("since"), idParam("until"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500, default: 100 } }];
 
   return {
     openapi: "3.1.0",
     info: {
       title: "Cuiabar Meta Ads API",
-      version: "0.2.0",
-      description: "Meta Graph/Marketing/Business Actions for authenticated Cuiabar editors with controlled write access."
+      version: "0.4.0",
+      description: "Autonomous Meta Graph/Marketing/Business Actions. Non-financial writes run directly; financial changes require explicit confirmation."
     },
     servers: [{ url: origin }],
     security,
@@ -732,15 +866,48 @@ function openApiSchema(origin: string): JsonObject {
       "/actions/catalog-products": getPath("listMetaCatalogProducts", "List catalog products", [idParam("catalogId"), idParam("fields"), { name: "limit", in: "query", required: false, schema: { type: "integer" } }]),
       "/actions/pages": getPath("listMetaPages", "List Pages available to the token", [idParam("fields"), { name: "limit", in: "query", required: false, schema: { type: "integer" } }]),
       "/actions/page-profile": getPath("getMetaPageProfile", "Get Meta Page profile"),
+      "/actions/page-feed": getPath("listMetaPageFeed", "List Page posts and attachments"),
+      "/actions/facebook-list-posts": getPath("facebook_list_posts", "List the Page organic post library", socialPageListParams),
+      "/actions/facebook-get-post": getPath("facebook_get_post", "Get one organic Page post", [idParam("post_id", true), idParam("fields")]),
+      "/actions/facebook-list-photos": getPath("facebook_list_page_photos", "List uploaded Page photos", [...socialPageListParams, idParam("type")]),
+      "/actions/facebook-get-photo": getPath("facebook_get_photo", "Get one Page photo", [idParam("photo_id", true), idParam("fields")]),
+      "/actions/facebook-list-videos": getPath("facebook_list_page_videos", "List Page videos", socialPageListParams),
+      "/actions/facebook-get-video": getPath("facebook_get_video", "Get one Page video", [idParam("video_id", true), idParam("fields")]),
+      "/actions/facebook-list-reels": getPath("facebook_list_page_reels", "List Page Reels exposed by the video_reels edge", socialPageListParams),
+      "/actions/facebook-get-reel": getPath("facebook_get_reel", "Get one Page Reel", [idParam("reel_id", true), idParam("fields")]),
+      "/actions/facebook-get-post-insights": getPath("facebook_get_post_insights", "Get insights for an organic Page post", [idParam("post_id", true), idParam("metric"), idParam("period"), idParam("since"), idParam("until")]),
       "/actions/instagram-profile": getPath("getMetaInstagramProfile", "Get Instagram business profile"),
+      "/actions/instagram-media": getPath("listMetaInstagramMedia", "List Instagram media and engagement"),
+      "/actions/instagram-list-media": getPath("instagram_list_media", "List the professional Instagram organic media library", socialIgListParams),
+      "/actions/instagram-get-media": getPath("instagram_get_media", "Get one organic Instagram media object", [idParam("media_id", true), idParam("fields")]),
+      "/actions/instagram-get-media-children": getPath("instagram_get_media_children", "List carousel children for Instagram media", [idParam("media_id", true), idParam("fields"), idParam("cursor"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500 } }]),
+      "/actions/instagram-get-media-insights": getPath("instagram_get_media_insights", "Get organic Instagram media insights; metric is required and must suit the media type", [idParam("media_id", true), idParam("metric", true), idParam("period")]),
+      "/actions/instagram-list-comments": getPath("instagram_list_comments", "List comments and replies on organic Instagram media", [idParam("media_id", true), idParam("fields"), idParam("cursor"), { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 500 } }]),
+      "/actions/comments": getPath("listMetaComments", "List comments for a Page or Instagram object", [idParam("objectId", true), idParam("fields")]),
+      "/actions/leadgen-forms": getPath("listMetaLeadgenForms", "List Page lead generation forms", [idParam("pageId"), idParam("fields")]),
+      "/actions/leads": getPath("listMetaLeads", "Retrieve leads from a lead generation form", [idParam("formId", true), idParam("fields")]),
       "/actions/targeting-search": getPath("searchMetaTargeting", "Search Meta targeting descriptors"),
       "/actions/resolve-geo-location": getPath("resolveMetaGeoLocation", "Resolve Meta geo targeting location"),
       "/actions/meta-graph-request-v2": postPath("metaGraphRequestV2", "Generic Meta Graph request with JSON string fallbacks", graphRequestProperties(true), ["path"], true),
-      "/actions/batch-graph-request": postPath("batchMetaGraphRequest", "Batch Meta Graph requests", { requests: { type: "array", maxItems: 50, items: { type: "object", additionalProperties: true } }, validateOnly: { type: "boolean", default: true }, confirmWrite: schema("string") }, ["requests"]),
+      "/actions/batch-graph-request": postPath("batchMetaGraphRequest", "Batch Meta Graph requests; non-financial writes execute autonomously", { requests: { type: "array", maxItems: 50, items: { type: "object", additionalProperties: true } }, validateOnly: { type: "boolean", default: false }, confirmFinancial: schema("string") }, ["requests"]),
       "/actions/create-full-meta-campaign-v2": postPath("createFullMetaCampaignV2", "Create full campaign with JSON string fallbacks", fullCampaignProperties(true), [], true),
       "/actions/create-ad-in-adset": postPath("createMetaAdInExistingAdSet", "Create a Meta ad in an existing ad set", { adAccountId: schema("string"), adSetId: schema("string"), pageId: schema("string"), linkUrl: schema("string"), adName: schema("string"), creativeName: schema("string"), message: schema("string"), headline: schema("string"), description: schema("string"), imageUrl: schema("string"), imageHash: schema("string"), videoId: schema("string"), thumbnailUrl: schema("string"), callToActionType: schema("string"), adStatus: { type: "string", enum: ["PAUSED", "ACTIVE"], default: "PAUSED" }, validateOnly: { type: "boolean", default: true } }, ["adAccountId", "adSetId", "pageId", "linkUrl", "adName", "message"]),
       "/actions/upload-ad-image": postPath("uploadMetaAdImageByUrl", "Upload Meta ad image by URL", { adAccountId: schema("string"), imageUrl: schema("string") }, ["imageUrl"]),
-      "/actions/upload-ad-video": postPath("uploadMetaAdVideoByUrl", "Upload Meta ad video by URL", { adAccountId: schema("string"), videoUrl: schema("string"), title: schema("string"), description: schema("string") }, ["videoUrl"])
+      "/actions/upload-ad-video": postPath("uploadMetaAdVideoByUrl", "Upload Meta ad video by URL", { adAccountId: schema("string"), videoUrl: schema("string"), title: schema("string"), description: schema("string") }, ["videoUrl"]),
+      "/actions/create-page-post": postPath("createMetaPagePost", "Create a Page post autonomously", { pageId: schema("string"), message: schema("string"), link: schema("string"), published: schema("boolean") }),
+      "/actions/create-page-photo": postPath("createMetaPagePhoto", "Publish a Page photo autonomously", { pageId: schema("string"), url: schema("string"), caption: schema("string") }),
+      "/actions/create-page-video": postPath("createMetaPageVideo", "Publish a Page video autonomously", { pageId: schema("string"), file_url: schema("string"), title: schema("string"), description: schema("string") }),
+      "/actions/update-page-post": postPath("updateMetaPagePost", "Update a Page post autonomously", { postId: schema("string"), message: schema("string") }, ["postId"], true),
+      "/actions/update-page-profile": postPath("updateMetaPageProfile", "Update Page metadata and CTA autonomously", { pageId: schema("string") }, [], true),
+      "/actions/delete-meta-content": postPath("deleteMetaContent", "Delete supported Meta content autonomously", { objectId: schema("string") }, ["objectId"]),
+      "/actions/facebook-delete-post": postPath("facebook_delete_post", "Delete a Page post; validateOnly previews without deleting", { post_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["post_id"]),
+      "/actions/facebook-delete-photo": postPath("facebook_delete_photo", "Delete a Page photo; validateOnly previews without deleting", { photo_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["photo_id"]),
+      "/actions/facebook-delete-video": postPath("facebook_delete_video", "Delete a Page video or Reel; validateOnly previews without deleting", { video_id: schema("string"), validateOnly: { type: "boolean", default: false } }, ["video_id"]),
+      "/actions/create-instagram-media-container": postPath("createInstagramMediaContainer", "Create Instagram publishing container", { instagramBusinessAccountId: schema("string") }, [], true),
+      "/actions/publish-instagram-content": postPath("publishInstagramContent", "Publish an Instagram media container autonomously", { instagramBusinessAccountId: schema("string"), creation_id: schema("string") }, ["creation_id"]),
+      "/actions/reply-comment": postPath("replyMetaComment", "Reply to a Page or Instagram comment autonomously", { commentId: schema("string"), message: schema("string") }, ["commentId", "message"]),
+      "/actions/moderate-comment": postPath("moderateMetaComment", "Hide, unhide or manage a comment autonomously", { commentId: schema("string"), is_hidden: schema("boolean") }, ["commentId"]),
+      "/actions/send-meta-message": postPath("sendMetaMessage", "Send a Page or Instagram supported message autonomously", { recipient: { type: "object", additionalProperties: true }, message: { type: "object", additionalProperties: true } }, ["recipient", "message"])
     }
   };
 }
@@ -754,8 +921,8 @@ function graphRequestProperties(withFallbacks = false): JsonObject {
     body: { type: "object", additionalProperties: true },
     ...(withFallbacks ? { queryJson: schema("string"), bodyJson: schema("string") } : {}),
     idempotencyKey: schema("string"),
-    validateOnly: { type: "boolean", default: true },
-    confirmWrite: schema("string")
+    validateOnly: { type: "boolean", default: false },
+    confirmFinancial: schema("string", "Required only for financial operations: CONFIRM_META_FINANCIAL")
   };
 }
 
@@ -765,8 +932,8 @@ function fullCampaignProperties(withFallbacks = false): JsonObject {
     campaign: { type: "object", additionalProperties: true },
     adsets: { type: "array", items: { type: "object", additionalProperties: true } },
     ...(withFallbacks ? { campaignJson: schema("string"), adsetsJson: schema("string") } : {}),
-    validateOnly: { type: "boolean", default: true },
-    confirmWrite: schema("string")
+    validateOnly: { type: "boolean", default: false },
+    confirmFinancial: schema("string", "Required when budgets, bids, spend or ACTIVE delivery are requested")
   };
 }
 

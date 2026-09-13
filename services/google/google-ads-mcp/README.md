@@ -1,6 +1,6 @@
-# Google Ads MCP somente leitura
+# Google Ads MCP e GPT Actions
 
-Servidor MCP remoto para instalar no ChatGPT e consultar Google Ads sem expor funcoes de escrita.
+Servidor MCP remoto e API para consultar, criar, atualizar e remover recursos Google Ads com confirmação explícita.
 
 ## Link MCP
 
@@ -74,5 +74,61 @@ curl http://localhost:8788/health
 - `get_geo_performance`
 - `get_budget_status`
 - `run_readonly_gaql`
+- `mutate_google_ads`
+- `create_customer_match_job`
+- `add_customer_match_users`
+- `run_customer_match_job`
+- `upload_crm_click_conversions`
+- `merchant_list_products`
+- `merchant_list_data_sources`
+- `merchant_upsert_product`
+- `merchant_patch_product`
+- `merchant_delete_product`
+- `merchant_manage_data_source`
+- `merchant_delete_data_source`
+- `merchant_search_reports`
+- `merchant_get_product`
+- `merchant_api_request` — cobertura das sub-APIs oficiais de contas, produtos, fontes, estoques local/regional, promoções, diagnósticos, relatórios, conversões, notificações, regiões, avaliações e Product Studio
+- `business_profile_request`
+- `business_get_food_menus`
+- `business_update_food_menus`
 
-Todas as ferramentas usam apenas endpoints de leitura. O servidor nao implementa `mutate`, criacao, edicao, pausa, ativacao, exclusao ou alteracao de verba.
+## Google Business Profile
+
+O projeto Google Cloud precisa das APIs Business Profile e do escopo `https://www.googleapis.com/auth/business.manage`. Configure `GOOGLE_BUSINESS_REFRESH_TOKEN` após o consentimento OAuth.
+
+Cardápios usam `accounts/{accountId}/locations/{locationId}/foodMenus`. A ficha precisa retornar `canHaveFoodMenus=true`. Itens podem conter nome, preço/moeda, descrição, nutrição, porção, rendimento e `mediaKeys` de fotos previamente enviadas à ficha.
+
+A ferramenta cobre contas, fichas, categorias, descrição, horários, posts, mídia, avaliações, perguntas e métricas de pesquisa/performance. Alteração exige `CONFIRM_GOOGLE_BUSINESS_WRITE`; exclusão exige `CONFIRM_GOOGLE_BUSINESS_DELETE`. Gestão de administradores e convites é bloqueada.
+
+## Merchant Center
+
+O Merchant usa a API atual `merchantapi.googleapis.com` e o escopo OAuth `https://www.googleapis.com/auth/content`. Configure `GOOGLE_MERCHANT_REFRESH_TOKEN` e, opcionalmente, `GOOGLE_MERCHANT_ACCOUNT_ID`. Para manter Ads e Business Profile independentes, podem ser usados `GOOGLE_MERCHANT_CLIENT_ID` e `GOOGLE_MERCHANT_CLIENT_SECRET`; na ausência deles, o conector usa o cliente OAuth do Google Ads. Não exige a aprovação especial do Business Profile.
+
+Além de ativar `merchantapi.googleapis.com`, o projeto Google Cloud deve ser registrado como desenvolvedor na conta Merchant por `developerRegistration:registerGcp`. A conta precisa ser de produção e possuir site verificado.
+
+As operações genéricas de escrita usam `validateOnly=true` por padrão. Execução real exige `CONFIRM_GOOGLE_MERCHANT_WRITE` ou `CONFIRM_GOOGLE_MERCHANT_DELETE`; no Business Profile, `CONFIRM_GOOGLE_BUSINESS_WRITE` ou `CONFIRM_GOOGLE_BUSINESS_DELETE`.
+
+- Escrita: `CONFIRM_GOOGLE_MERCHANT_WRITE`.
+- Exclusão: `CONFIRM_GOOGLE_MERCHANT_DELETE`.
+- Produtos só podem ser gravados em fontes do tipo API.
+
+## Customer Match, CRM e cargas grandes
+
+- O Customer Match usa `OfflineUserDataJob`: crie o job, envie lotes e depois execute o job.
+- Cada chamada aceita ate 10.000 registros. Arquivos grandes devem ser lidos pelo CRM e enviados em chamadas sucessivas; o job pode acumular varios lotes.
+- Email e telefone sao normalizados e transformados em SHA-256 dentro do Worker; PII em claro nao e registrada.
+- Telefone deve usar E.164. Consentimento `adUserData` e `adPersonalization` e obrigatorio ao criar o job.
+- Inclusao exige `CONFIRM_GOOGLE_ADS_WRITE`; remocao exige `CONFIRM_GOOGLE_ADS_DELETE`.
+- Conversoes offline do CRM usam validacao por padrao e suportam ate 2.000 conversoes por chamada.
+- A conta Google Ads ainda precisa estar elegivel para Customer Match. Upload arbitrario de midia pesada nao faz parte desse fluxo e continua sujeito aos limites de assets da API.
+
+## Escrita e exclusão
+
+A ferramenta `mutate_google_ads` e o endpoint `POST /actions/mutate` usam `GoogleAdsService.Mutate` e aceitam qualquer `MutateOperation` suportada pela versão configurada da API.
+
+- `validateOnly` assume `true` e valida sem executar.
+- Criação e atualização reais exigem `confirmWrite=CONFIRM_GOOGLE_ADS_WRITE`.
+- Qualquer operação contendo `remove` exige `confirmWrite=CONFIRM_GOOGLE_ADS_DELETE`.
+- Cada requisição aceita de 1 a 1000 operações e payload de até 1 MB.
+- `partialFailure` assume `false`.

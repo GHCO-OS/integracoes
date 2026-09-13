@@ -1,6 +1,9 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { GoogleAdsClient, normalizeCustomerId } from "./googleAdsClient.js";
 import { createGoogleAdsMcpServer } from "./mcpServer.js";
+import { assertMutationConfirmed } from "./mutationGuard.js";
+import { MerchantClient } from "./merchantClient.js";
+import { BusinessProfileClient } from "./businessProfileClient.js";
 
 type Env = {
   GOOGLE_ADS_CLIENT_ID?: string;
@@ -11,6 +14,11 @@ type Env = {
   GOOGLE_ADS_LOGIN_CUSTOMER_ID?: string;
   GOOGLE_ADS_API_VERSION?: string;
   MCP_BEARER_TOKEN?: string;
+  GOOGLE_MERCHANT_REFRESH_TOKEN?: string;
+  GOOGLE_MERCHANT_CLIENT_ID?: string;
+  GOOGLE_MERCHANT_CLIENT_SECRET?: string;
+  GOOGLE_MERCHANT_ACCOUNT_ID?: string;
+  GOOGLE_BUSINESS_REFRESH_TOKEN?: string;
 };
 
 type OAuthPayload = {
@@ -38,12 +46,16 @@ export default {
 
     if (url.pathname === "/" || url.pathname === "/health") {
       const missing = REQUIRED_ENV.filter((key) => !env[key]);
+      const commerceProbe = url.searchParams.get("probe") === "commerce" ? await probeCommerceConnections(env) : undefined;
       return json({
         ok: missing.length === 0,
         service: "google-ads-mcp",
-        mode: "read-only",
+        mode: "read-write-controlled",
         endpoint: "https://google-ads-mcp.cuiabar.com/sse",
         apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24",
+        merchantConfigured: Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN),
+        businessProfileConfigured: Boolean(env.GOOGLE_BUSINESS_REFRESH_TOKEN),
+        commerceProbe,
         missingSecrets: missing
       });
     }
@@ -60,7 +72,7 @@ export default {
       return json({
         resource: origin,
         authorization_servers: [origin],
-        scopes_supported: ["google_ads.read"],
+        scopes_supported: ["google_ads.read", "google_ads.write"],
         bearer_methods_supported: ["header"],
         resource_documentation: "https://google-ads-mcp.cuiabar.com/health"
       });
@@ -79,7 +91,7 @@ export default {
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
           token_endpoint_auth_method: "client_secret_post",
-          scope: "google_ads.read"
+          scope: "google_ads.read google_ads.write"
         },
         201
       );
@@ -129,10 +141,17 @@ export default {
       loginCustomerId: env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
     });
 
+    const merchant = new MerchantClient({
+      clientId: env.GOOGLE_MERCHANT_CLIENT_ID ?? env.GOOGLE_ADS_CLIENT_ID!,
+      clientSecret: env.GOOGLE_MERCHANT_CLIENT_SECRET ?? env.GOOGLE_ADS_CLIENT_SECRET!,
+      refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN,
+      accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID
+    });
+    const business = new BusinessProfileClient({ clientId: env.GOOGLE_ADS_CLIENT_ID!, clientSecret: env.GOOGLE_ADS_CLIENT_SECRET!, refreshToken: env.GOOGLE_BUSINESS_REFRESH_TOKEN });
     const server = createGoogleAdsMcpServer(googleAds, {
       publicUrl: "https://google-ads-mcp.cuiabar.com/sse",
       apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24"
-    });
+    }, merchant, business);
 
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
@@ -143,6 +162,27 @@ export default {
     return transport.handleRequest(request);
   }
 };
+
+async function probeCommerceConnections(env: Env): Promise<Record<string, unknown>> {
+  const merchant = new MerchantClient({ clientId: env.GOOGLE_MERCHANT_CLIENT_ID ?? env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_MERCHANT_CLIENT_SECRET ?? env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_MERCHANT_REFRESH_TOKEN, accountId: env.GOOGLE_MERCHANT_ACCOUNT_ID });
+  const business = new BusinessProfileClient({ clientId: env.GOOGLE_ADS_CLIENT_ID ?? "", clientSecret: env.GOOGLE_ADS_CLIENT_SECRET ?? "", refreshToken: env.GOOGLE_BUSINESS_REFRESH_TOKEN });
+  return {
+    merchant: await connectionProbe(Boolean(env.GOOGLE_MERCHANT_REFRESH_TOKEN), () => merchant.rawRequest("GET", "accounts/v1/accounts", { pageSize: 1 })),
+    businessProfile: await connectionProbe(Boolean(env.GOOGLE_BUSINESS_REFRESH_TOKEN), () => business.request("accounts", "GET", "accounts", { pageSize: 1 }))
+  };
+}
+
+async function connectionProbe(configured: boolean, operation: () => Promise<unknown>): Promise<Record<string, unknown>> {
+  if (!configured) return { configured: false, reachable: false };
+  try {
+    await operation();
+    return { configured: true, reachable: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    const status = message.match(/(?:API|OAuth)[^:]*:?\s*(\d{3})/)?.[1];
+    return { configured: true, reachable: false, status: status ? Number(status) : undefined };
+  }
+}
 
 async function requireBearerToken(request: Request, env: Env): Promise<Response | null> {
   if (!env.MCP_BEARER_TOKEN) {
@@ -173,7 +213,7 @@ function authorizationServerMetadata(origin: string): Record<string, unknown> {
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256", "plain"],
     token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic", "none"],
-    scopes_supported: ["google_ads.read"],
+    scopes_supported: ["google_ads.read", "google_ads.write"],
     service_documentation: `${origin}/health`
   };
 }
@@ -204,7 +244,7 @@ async function handleActionRequest(request: Request, env: Env): Promise<Response
     return json({
       ok: true,
       service: "google-ads-actions",
-      mode: "read-only",
+      mode: "read-write-controlled",
       apiVersion: env.GOOGLE_ADS_API_VERSION ?? "v24"
     });
   }
@@ -276,6 +316,24 @@ async function handleActionRequest(request: Request, env: Env): Promise<Response
     return json(await googleAds.searchStream(query, customerId));
   }
 
+  if (url.pathname === "/actions/mutate" && request.method === "POST") {
+    const body = await readJson(request);
+    const operations = Array.isArray(body.operations)
+      ? body.operations.filter((operation): operation is Record<string, unknown> => Boolean(operation) && typeof operation === "object" && !Array.isArray(operation))
+      : [];
+    const validateOnly = body.validateOnly !== false;
+    const confirmWrite = typeof body.confirmWrite === "string" ? body.confirmWrite : undefined;
+    assertMutationConfirmed(operations, validateOnly, confirmWrite);
+    return json(
+      await googleAds.mutate(operations, {
+        customerId: typeof body.customerId === "string" ? body.customerId : undefined,
+        partialFailure: body.partialFailure === true,
+        validateOnly,
+        responseContentType: body.responseContentType === "MUTABLE_RESOURCE" ? "MUTABLE_RESOURCE" : "RESOURCE_NAME_ONLY"
+      })
+    );
+  }
+
   return json({ error: "Not found" }, 404);
 }
 
@@ -311,7 +369,7 @@ function authorizationPage(url: URL): Response {
 <body>
   <main>
     <h1>Autorizar Google Ads MCP</h1>
-    <p>Informe o token privado do MCP para liberar acesso somente leitura ao ChatGPT.</p>
+    <p>Informe o token privado do MCP para liberar leitura e escrita controlada no Google Ads.</p>
     <form method="post" action="/authorize">
       ${hiddenFields}
       <label>Token MCP
@@ -331,9 +389,9 @@ function openApiSchema(origin: string): Record<string, unknown> {
   return {
     openapi: "3.1.0",
     info: {
-      title: "Cuiabar Google Ads Read-Only API",
-      version: "0.1.0",
-      description: "Read-only Google Ads reporting API for a custom GPT. No mutate/write endpoints are exposed."
+      title: "GHCO Google Ads API",
+      version: "0.2.0",
+      description: "Google Ads reporting and controlled create, update and remove operations for GHCO integrations."
     },
     servers: [{ url: origin }],
     components: {
@@ -443,6 +501,47 @@ function openApiSchema(origin: string): Record<string, unknown> {
           },
           responses: { "200": { description: "GAQL rows" } }
         }
+      },
+      "/actions/mutate": {
+        post: {
+          operationId: "mutateGoogleAdsResources",
+          summary: "Create, update or remove Google Ads resources",
+          description: "Defaults to validation only. Real writes require an explicit confirmation phrase; removes use a stronger deletion phrase.",
+          security,
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["operations"],
+                  properties: {
+                    operations: {
+                      type: "array",
+                      minItems: 1,
+                      maxItems: 1000,
+                      items: { type: "object", additionalProperties: true }
+                    },
+                    customerId: { type: "string" },
+                    partialFailure: { type: "boolean", default: false },
+                    validateOnly: { type: "boolean", default: true },
+                    responseContentType: {
+                      type: "string",
+                      enum: ["RESOURCE_NAME_ONLY", "MUTABLE_RESOURCE"],
+                      default: "RESOURCE_NAME_ONLY"
+                    },
+                    confirmWrite: {
+                      type: "string",
+                      description: "CONFIRM_GOOGLE_ADS_WRITE for create/update or CONFIRM_GOOGLE_ADS_DELETE when any operation removes a resource."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: { "200": { description: "Mutation validation or results" } }
+        }
       }
     }
   };
@@ -462,7 +561,7 @@ async function handleAuthorizePost(request: Request, env: Env): Promise<Response
   const codeChallenge = String(form.get("code_challenge") ?? "");
   const codeChallengeMethod = String(form.get("code_challenge_method") || "plain");
   const state = String(form.get("state") ?? "");
-  const scope = String(form.get("scope") || "google_ads.read");
+  const scope = String(form.get("scope") || "google_ads.read google_ads.write");
 
   if (responseType !== "code" || !redirectUri || !clientId) {
     return json({ error: "invalid_request" }, 400);
@@ -529,7 +628,7 @@ async function handleTokenRequest(request: Request, env: Env): Promise<Response>
   return json({ error: "unsupported_grant_type" }, 400);
 }
 
-async function issueTokens(env: Env, scope = "google_ads.read"): Promise<Response> {
+async function issueTokens(env: Env, scope = "google_ads.read google_ads.write"): Promise<Response> {
   const now = Math.floor(Date.now() / 1000);
   const accessToken = await signPayload({ type: "access", exp: now + 3600, scope }, env);
   const refreshToken = await signPayload({ type: "refresh", exp: now + 60 * 60 * 24 * 30, scope }, env);
@@ -548,7 +647,7 @@ function unauthorized(request: Request): Response {
   const resourceMetadata = `${url.origin}/.well-known/oauth-protected-resource`;
 
   return json({ error: "Bearer token invalido." }, 401, {
-    "WWW-Authenticate": `Bearer resource_metadata="${resourceMetadata}", scope="google_ads.read"`
+    "WWW-Authenticate": `Bearer resource_metadata="${resourceMetadata}", scope="google_ads.read google_ads.write"`
   });
 }
 

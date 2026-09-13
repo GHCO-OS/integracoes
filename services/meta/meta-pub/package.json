@@ -1,0 +1,17 @@
+{
+  "name": "@ghco/meta-pub",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Focused Facebook and Instagram organic publishing MCP/OpenAPI for GHCO.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "deploy": "wrangler deploy -c wrangler.jsonc"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "wrangler": "4.71.0"
+  },
+  "engines": { "node": ">=20" }
+}

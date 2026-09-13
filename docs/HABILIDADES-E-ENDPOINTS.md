@@ -6,7 +6,10 @@
 - MCP remoto: `/sse` e `/mcp`
 - Contrato GPT: `/openapi.json`
 - Saúde: `/health`
-- Capacidades: campanhas, desempenho, grupos, anúncios, palavras-chave, termos de busca, geografia, orçamentos e GAQL somente leitura.
+- Capacidades de leitura: campanhas, desempenho, grupos, anúncios, palavras-chave, termos de busca, geografia, orçamentos e GAQL `SELECT`.
+- Capacidades de escrita: criação, atualização e remoção de qualquer recurso aceito por `GoogleAdsService.Mutate`.
+- GPT Action: `POST /actions/mutate`; MCP: `mutate_google_ads`.
+- Escrita real exige confirmação explícita; simulação é o comportamento padrão.
 
 ## Meta
 

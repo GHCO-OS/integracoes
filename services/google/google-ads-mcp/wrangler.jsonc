@@ -2,10 +2,11 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "google-ads-mcp",
   "main": "src/worker.ts",
-  "compatibility_date": "2026-05-04",
+  "compatibility_date": "2026-09-12",
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
-    "enabled": true
+    "enabled": true,
+    "head_sampling_rate": 1
   },
   "routes": [
     {

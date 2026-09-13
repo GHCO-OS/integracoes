@@ -17,6 +17,15 @@ type OAuthTokenResponse = {
 };
 
 export type SearchStreamResult = Record<string, unknown>;
+export type MutateOperation = Record<string, unknown>;
+export type OfflineUserDataOperation = Record<string, unknown>;
+
+export type MutateOptions = {
+  customerId?: string;
+  partialFailure?: boolean;
+  validateOnly?: boolean;
+  responseContentType?: "RESOURCE_NAME_ONLY" | "MUTABLE_RESOURCE";
+};
 
 export class GoogleAdsClient {
   private accessToken: string | null = null;
@@ -66,6 +75,98 @@ export class GoogleAdsClient {
       }
       return [];
     });
+  }
+
+  async mutate(operations: MutateOperation[], options: MutateOptions = {}): Promise<unknown> {
+    if (operations.length < 1 || operations.length > 1000) {
+      throw new Error("operations deve conter entre 1 e 1000 operacoes.");
+    }
+
+    const accessToken = await this.getAccessToken();
+    const cleanCustomerId = normalizeCustomerId(options.customerId ?? this.config.customerId);
+    const body = {
+      mutateOperations: operations,
+      partialFailure: options.partialFailure ?? false,
+      validateOnly: options.validateOnly ?? true,
+      responseContentType: options.responseContentType ?? "RESOURCE_NAME_ONLY"
+    };
+    const serializedBody = JSON.stringify(body);
+    if (serializedBody.length > 1_000_000) {
+      throw new Error("Payload de mutate excede o limite local de 1 MB.");
+    }
+
+    const response = await fetch(
+      `https://googleads.googleapis.com/${this.config.apiVersion}/customers/${cleanCustomerId}/googleAds:mutate`,
+      {
+        method: "POST",
+        headers: {
+          ...this.headers(accessToken),
+          "content-type": "application/json"
+        },
+        body: serializedBody
+      }
+    );
+
+    return this.parseResponse(response);
+  }
+
+  async createCustomerMatchJob(
+    userList: string,
+    customerId = this.config.customerId,
+    consent?: { adUserData?: "GRANTED" | "DENIED"; adPersonalization?: "GRANTED" | "DENIED" }
+  ): Promise<unknown> {
+    return this.post(
+      `customers/${normalizeCustomerId(customerId)}/offlineUserDataJobs:create`,
+      {
+        job: {
+          type: "CUSTOMER_MATCH_USER_LIST",
+          customerMatchUserListMetadata: { userList, ...(consent ? { consent } : {}) }
+        }
+      }
+    );
+  }
+
+  async addCustomerMatchOperations(
+    resourceName: string,
+    operations: OfflineUserDataOperation[],
+    enablePartialFailure = true
+  ): Promise<unknown> {
+    if (operations.length < 1 || operations.length > 10_000) {
+      throw new Error("operations deve conter entre 1 e 10000 registros por lote.");
+    }
+    return this.post(`${assertOfflineJobResourceName(resourceName)}:addOperations`, {
+      operations,
+      enablePartialFailure
+    });
+  }
+
+  async runCustomerMatchJob(resourceName: string): Promise<unknown> {
+    return this.post(`${assertOfflineJobResourceName(resourceName)}:run`, {});
+  }
+
+  async uploadClickConversions(
+    conversions: Record<string, unknown>[],
+    options: { customerId?: string; partialFailure?: boolean; validateOnly?: boolean; jobId?: number } = {}
+  ): Promise<unknown> {
+    if (conversions.length < 1 || conversions.length > 2000) {
+      throw new Error("conversions deve conter entre 1 e 2000 conversoes.");
+    }
+    return this.post(`customers/${normalizeCustomerId(options.customerId ?? this.config.customerId)}:uploadClickConversions`, {
+      conversions,
+      partialFailure: options.partialFailure ?? true,
+      validateOnly: options.validateOnly ?? true,
+      ...(options.jobId === undefined ? {} : { jobId: options.jobId })
+    });
+  }
+
+  private async post(path: string, body: unknown): Promise<unknown> {
+    const accessToken = await this.getAccessToken();
+    const response = await fetch(`https://googleads.googleapis.com/${this.config.apiVersion}/${path}`, {
+      method: "POST",
+      headers: { ...this.headers(accessToken), "content-type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    return this.parseResponse(response);
   }
 
   private async getAccessToken(): Promise<string> {
@@ -122,6 +223,13 @@ export class GoogleAdsClient {
 
     return payload;
   }
+}
+
+function assertOfflineJobResourceName(resourceName: string): string {
+  if (!/^customers\/\d+\/offlineUserDataJobs\/\d+$/.test(resourceName)) {
+    throw new Error("resourceName de OfflineUserDataJob invalido.");
+  }
+  return resourceName;
 }
 
 export function normalizeCustomerId(customerId: string): string {

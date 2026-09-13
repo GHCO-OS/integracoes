@@ -1,6 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { GoogleAdsClient } from "./googleAdsClient.js";
+import { assertMutationConfirmed } from "./mutationGuard.js";
+import { customerMatchOperations } from "./customerMatch.js";
+import { MerchantClient } from "./merchantClient.js";
+import { BusinessProfileClient, type BusinessProfileService } from "./businessProfileClient.js";
 
 type McpMetadata = {
   localUrl?: string;
@@ -8,10 +12,10 @@ type McpMetadata = {
   apiVersion: string;
 };
 
-export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata): McpServer {
+export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: McpMetadata, merchant?: MerchantClient, business?: BusinessProfileClient): McpServer {
   const server = new McpServer({
-    name: "cuiabar-google-ads-readonly",
-    version: "0.1.0"
+    name: "ghco-google-ads",
+    version: "0.3.0"
   });
 
   server.registerTool(
@@ -212,12 +216,232 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
     async ({ query, customerId }) => textResult(await googleAds.searchStream(query, customerId))
   );
 
+  server.registerTool(
+    "mutate_google_ads",
+    {
+      title: "Criar, atualizar ou remover recursos Google Ads",
+      description:
+        "Executa GoogleAdsService.Mutate para qualquer recurso suportado. Por padrao apenas valida. Escrita exige CONFIRM_GOOGLE_ADS_WRITE; operacoes remove exigem CONFIRM_GOOGLE_ADS_DELETE.",
+      inputSchema: {
+        operations: z.array(z.record(z.string(), z.unknown())).min(1).max(1000),
+        customerId: z.string().optional(),
+        partialFailure: z.boolean().default(false),
+        validateOnly: z.boolean().default(true),
+        responseContentType: z.enum(["RESOURCE_NAME_ONLY", "MUTABLE_RESOURCE"]).default("RESOURCE_NAME_ONLY"),
+        confirmWrite: z.string().optional()
+      }
+    },
+    async ({ operations, customerId, partialFailure, validateOnly, responseContentType, confirmWrite }) => {
+      assertMutationConfirmed(operations, validateOnly, confirmWrite);
+      return textResult(
+        await googleAds.mutate(operations, {
+          customerId,
+          partialFailure,
+          validateOnly,
+          responseContentType
+        })
+      );
+    }
+  );
+
+  server.registerTool(
+    "create_customer_match_job",
+    {
+      title: "Criar job de Customer Match",
+      description: "Cria um job de audiencia CRM. Exige consentimento declarado e confirmacao de escrita.",
+      inputSchema: {
+        userList: z.string().regex(/^customers\/\d+\/userLists\/\d+$/),
+        customerId: z.string().optional(),
+        adUserData: z.enum(["GRANTED", "DENIED"]),
+        adPersonalization: z.enum(["GRANTED", "DENIED"]),
+        confirmWrite: z.literal("CONFIRM_GOOGLE_ADS_WRITE")
+      }
+    },
+    async ({ userList, customerId, adUserData, adPersonalization }) =>
+      textResult(await googleAds.createCustomerMatchJob(userList, customerId, { adUserData, adPersonalization }))
+  );
+
+  server.registerTool(
+    "add_customer_match_users",
+    {
+      title: "Enviar lote CRM ao Customer Match",
+      description: "Normaliza e aplica SHA-256 a email/telefone no Worker. Aceita ate 10 mil registros por chamada; repita para arquivos grandes.",
+      inputSchema: {
+        jobResourceName: z.string().regex(/^customers\/\d+\/offlineUserDataJobs\/\d+$/),
+        records: z.array(z.object({
+          email: z.string().optional(),
+          phone: z.string().optional(),
+          thirdPartyUserId: z.string().optional()
+        })).min(1).max(10_000),
+        action: z.enum(["create", "remove"]).default("create"),
+        enablePartialFailure: z.boolean().default(true),
+        confirmWrite: z.string()
+      }
+    },
+    async ({ jobResourceName, records, action, enablePartialFailure, confirmWrite }) => {
+      const expected = action === "remove" ? "CONFIRM_GOOGLE_ADS_DELETE" : "CONFIRM_GOOGLE_ADS_WRITE";
+      if (confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+      return textResult(await googleAds.addCustomerMatchOperations(
+        jobResourceName,
+        await customerMatchOperations(records, action),
+        enablePartialFailure
+      ));
+    }
+  );
+
+  server.registerTool(
+    "run_customer_match_job",
+    {
+      title: "Executar job de Customer Match",
+      description: "Inicia o processamento do job apos todos os lotes terem sido enviados.",
+      inputSchema: {
+        jobResourceName: z.string().regex(/^customers\/\d+\/offlineUserDataJobs\/\d+$/),
+        confirmWrite: z.literal("CONFIRM_GOOGLE_ADS_WRITE")
+      }
+    },
+    async ({ jobResourceName }) => textResult(await googleAds.runCustomerMatchJob(jobResourceName))
+  );
+
+  server.registerTool(
+    "upload_crm_click_conversions",
+    {
+      title: "Enviar conversoes offline do CRM",
+      description: "Envia conversoes de clique do CRM. Valida por padrao; execucao real exige confirmacao.",
+      inputSchema: {
+        conversions: z.array(z.record(z.string(), z.unknown())).min(1).max(2000),
+        customerId: z.string().optional(),
+        partialFailure: z.boolean().default(true),
+        validateOnly: z.boolean().default(true),
+        jobId: z.number().int().positive().optional(),
+        confirmWrite: z.string().optional()
+      }
+    },
+    async ({ conversions, customerId, partialFailure, validateOnly, jobId, confirmWrite }) => {
+      if (!validateOnly && confirmWrite !== "CONFIRM_GOOGLE_ADS_WRITE") {
+        throw new Error("Upload bloqueado. Use confirmWrite=CONFIRM_GOOGLE_ADS_WRITE.");
+      }
+      return textResult(await googleAds.uploadClickConversions(conversions, { customerId, partialFailure, validateOnly, jobId }));
+    }
+  );
+
+  server.registerTool("merchant_list_products", {
+    title: "Listar produtos do Merchant Center",
+    description: "Lista produtos processados, status e problemas do catalogo.",
+    inputSchema: { merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).listProducts(merchantAccountId, pageSize, pageToken)));
+
+  server.registerTool("merchant_get_product", {
+    title: "Consultar produto processado",
+    description: "Retorna o produto final processado pelo Merchant, incluindo status e problemas de qualidade.",
+    inputSchema: { name: z.string().regex(/^accounts\/\d+\/products\/.+$/) }
+  }, async ({ name }) => textResult(await requireMerchant(merchant).getProduct(name)));
+
+  server.registerTool("merchant_list_data_sources", {
+    title: "Listar fontes do Merchant Center",
+    description: "Lista fontes de dados usadas pelo catalogo.",
+    inputSchema: { merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).listDataSources(merchantAccountId, pageSize, pageToken)));
+
+  server.registerTool("merchant_upsert_product", {
+    title: "Inserir ou substituir produto Merchant",
+    description: "Insere um ProductInput em fonte API. Exige confirmacao de escrita.",
+    inputSchema: { merchantAccountId: z.string().optional(), dataSource: z.string(), productInput: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ merchantAccountId, dataSource, productInput }) => textResult(await requireMerchant(merchant).insertProduct(dataSource, productInput, merchantAccountId)));
+
+  server.registerTool("merchant_patch_product", {
+    title: "Atualizar produto Merchant",
+    description: "Atualiza campos selecionados de um ProductInput.",
+    inputSchema: { name: z.string(), dataSource: z.string(), updateMask: z.string().min(1), productInput: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ name, dataSource, updateMask, productInput }) => textResult(await requireMerchant(merchant).patchProduct(name, productInput, updateMask, dataSource)));
+
+  server.registerTool("merchant_delete_product", {
+    title: "Excluir produto Merchant",
+    description: "Exclui um ProductInput da fonte indicada.",
+    inputSchema: { name: z.string(), dataSource: z.string(), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_DELETE") }
+  }, async ({ name, dataSource }) => textResult(await requireMerchant(merchant).deleteProduct(name, dataSource)));
+
+  server.registerTool("merchant_manage_data_source", {
+    title: "Criar ou atualizar fonte Merchant",
+    description: "Cria ou atualiza uma fonte de dados. action=create ou patch.",
+    inputSchema: { action: z.enum(["create", "patch"]), merchantAccountId: z.string().optional(), name: z.string().optional(), updateMask: z.string().optional(), dataSource: z.record(z.string(), z.unknown()), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_WRITE") }
+  }, async ({ action, merchantAccountId, name, updateMask, dataSource }) => textResult(action === "create"
+    ? await requireMerchant(merchant).createDataSource(dataSource, merchantAccountId)
+    : await requireMerchant(merchant).patchDataSource(name ?? "", dataSource, updateMask ?? "")));
+
+  server.registerTool("merchant_delete_data_source", {
+    title: "Excluir fonte Merchant",
+    description: "Exclui uma fonte de dados e exige confirmacao destrutiva.",
+    inputSchema: { name: z.string(), confirmWrite: z.literal("CONFIRM_GOOGLE_MERCHANT_DELETE") }
+  }, async ({ name }) => textResult(await requireMerchant(merchant).deleteDataSource(name)));
+
+  server.registerTool("merchant_search_reports", {
+    title: "Consultar relatorios Merchant",
+    description: "Executa consulta SELECT na Merchant Reports API.",
+    inputSchema: { query: z.string().min(1).max(12_000), merchantAccountId: z.string().optional(), pageSize: z.number().int().min(1).max(1000).default(100), pageToken: z.string().optional() }
+  }, async ({ query, merchantAccountId, pageSize, pageToken }) => textResult(await requireMerchant(merchant).searchReports(query, merchantAccountId, pageSize, pageToken)));
+
+  server.registerTool("merchant_api_request", {
+    title: "Acesso completo a Merchant API",
+    description: "Opera as sub-APIs oficiais de contas, produtos, fontes, estoque local/regional, promoções, diagnósticos, relatórios, conversões, notificações, regiões, avaliações e Product Studio. Escritas simulam por padrão.",
+    inputSchema: {
+      method: z.enum(["GET", "POST", "PATCH", "DELETE"]),
+      path: z.string().min(1).max(1000).describe("Caminho relativo, por exemplo products/v1/accounts/123/products ou inventories/v1/accounts/123/products/en~BR~sku/localInventories:insert"),
+      query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+      body: z.record(z.string(), z.unknown()).optional(),
+      validateOnly: z.boolean().default(true),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ method, path, query, body, validateOnly, confirmWrite }) => {
+    const expected = method === "DELETE" ? "CONFIRM_GOOGLE_MERCHANT_DELETE" : method === "GET" ? undefined : "CONFIRM_GOOGLE_MERCHANT_WRITE";
+    if (!validateOnly && expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+    return textResult(await requireMerchant(merchant).rawRequest(method, path, query, body, validateOnly));
+  });
+
+  server.registerTool("business_get_food_menus", {
+    title: "Ler cardapios do Perfil da Empresa",
+    description: "Lê cardápios, seções, itens, preços, descrições, nutrição e fotos associadas de uma ficha elegível.",
+    inputSchema: { accountId: z.string().min(1), locationId: z.string().min(1) }
+  }, async ({ accountId, locationId }) => textResult(await requireBusiness(business).request("business", "GET", `accounts/${accountId}/locations/${locationId}/foodMenus`)));
+
+  server.registerTool("business_update_food_menus", {
+    title: "Criar ou substituir cardapios",
+    description: "Atualiza os Food Menus completos da ficha. Permite nomes, preços, moeda, descrições, seções, nutrição, porções e mediaKeys. Simula por padrão.",
+    inputSchema: {
+      accountId: z.string().min(1),
+      locationId: z.string().min(1),
+      foodMenus: z.record(z.string(), z.unknown()),
+      validateOnly: z.boolean().default(true),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ accountId, locationId, foodMenus, validateOnly, confirmWrite }) => {
+    if (!validateOnly && confirmWrite !== "CONFIRM_GOOGLE_BUSINESS_WRITE") throw new Error("Operacao bloqueada. Use confirmWrite=CONFIRM_GOOGLE_BUSINESS_WRITE.");
+    return textResult(await requireBusiness(business).safeRequest("business", "PATCH", `accounts/${accountId}/locations/${locationId}/foodMenus`, {}, foodMenus, validateOnly));
+  });
+
+  server.registerTool("business_profile_request", {
+    title: "Gerenciar Google Business Profile",
+    description: "Acesso controlado a contas, fichas, SEO local, horarios, categorias, posts, imagens, avaliacoes, perguntas e metricas. Administradores e convites ficam bloqueados.",
+    inputSchema: {
+      service: z.enum(["accounts", "information", "business", "performance"]),
+      method: z.enum(["GET", "POST", "PATCH", "PUT", "DELETE"]),
+      path: z.string().min(1).max(500),
+      query: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).default({}),
+      body: z.record(z.string(), z.unknown()).optional(),
+      validateOnly: z.boolean().default(true),
+      confirmWrite: z.string().optional()
+    }
+  }, async ({ service, method, path, query, body, validateOnly, confirmWrite }) => {
+    const expected = method === "DELETE" ? "CONFIRM_GOOGLE_BUSINESS_DELETE" : method === "GET" ? undefined : "CONFIRM_GOOGLE_BUSINESS_WRITE";
+    if (!validateOnly && expected && confirmWrite !== expected) throw new Error(`Operacao bloqueada. Use confirmWrite=${expected}.`);
+    return textResult(await requireBusiness(business).safeRequest(service as BusinessProfileService, method, path, query, body, validateOnly));
+  });
+
   server.registerResource(
     "install-info",
     "google-ads-mcp://install-info",
     {
       title: "Informacoes de instalacao",
-      description: "Resumo de instalacao do MCP Google Ads read-only.",
+      description: "Resumo de instalacao do MCP Google Ads com leitura e escrita controlada.",
       mimeType: "application/json"
     },
     async (uri) => ({
@@ -228,7 +452,7 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
           text: JSON.stringify(
             {
               service: "google-ads-mcp",
-              mode: "read-only",
+              mode: "read-write-controlled",
               localUrl: metadata.localUrl,
               publicUrl: metadata.publicUrl,
               apiVersion: metadata.apiVersion
@@ -242,6 +466,16 @@ export function createGoogleAdsMcpServer(googleAds: GoogleAdsClient, metadata: M
   );
 
   return server;
+}
+
+function requireMerchant(merchant?: MerchantClient): MerchantClient {
+  if (!merchant) throw new Error("Merchant Center nao configurado neste ambiente.");
+  return merchant;
+}
+
+function requireBusiness(business?: BusinessProfileClient): BusinessProfileClient {
+  if (!business) throw new Error("Business Profile nao configurado neste ambiente.");
+  return business;
 }
 
 function textResult(value: unknown) {

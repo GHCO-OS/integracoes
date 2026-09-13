@@ -1,16 +1,19 @@
 {
   "name": "@ghco/google-ads-mcp",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
-  "description": "Read-only MCP server for Google Ads reporting.",
+  "description": "Google Ads MCP and GPT Actions service with controlled read, create, update and remove capabilities.",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
     "deploy": "wrangler deploy -c wrangler.jsonc",
-    "oauth:ads": "node scripts/google-ads-oauth-helper.mjs"
+    "oauth:ads": "node scripts/google-ads-oauth-helper.mjs",
+    "oauth:merchant": "node scripts/google-merchant-oauth-helper.mjs",
+    "oauth:business": "node scripts/google-business-oauth-helper.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.29.0",
@@ -19,11 +22,12 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260829.1",
     "@types/express": "5.0.6",
     "@types/node": "25.0.1",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
-    "wrangler": "4.71.0"
+    "wrangler": "^4.127.1"
   },
   "engines": {
     "node": ">=20"

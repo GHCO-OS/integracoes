@@ -1,16 +1,19 @@
 {
   "name": "@ghco/meta-ads-actions",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "Controlled read/write Meta Graph, Ads, Business, WhatsApp and catalog API for custom GPT Actions.",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
     "deploy": "wrangler deploy -c wrangler.jsonc"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "4.20260313.1",
+    "@types/node": "25.0.1",
+    "tsx": "4.21.0",
     "typescript": "5.9.3",
     "wrangler": "4.71.0"
   },
