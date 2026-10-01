@@ -8,6 +8,17 @@
   "routes": [
     { "pattern": "data-mcp.cuiabar.com", "custom_domain": true }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ghco-operacao",
+      "database_id": "05d0dc9d-d35e-4529-9791-1936cabc58c7",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "ghco-data-files" }
+  ],
   "vars": {
     "GOOGLE_CLOUD_PROJECT_ID": "meucuiabar",
     "GOOGLE_BIGQUERY_LOCATION": "southamerica-east1",

@@ -1,8 +1,11 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { GoogleDataClient } from "./googleDataClient.js";
+import { CloudflareDataClient } from "./cloudflareDataClient.js";
 import { createDataMcpServer } from "./mcpServer.js";
 
 type Env = {
+  DB: D1Database;
+  FILES: R2Bucket;
   GOOGLE_DATA_CLIENT_ID?: string;
   GOOGLE_DATA_CLIENT_SECRET?: string;
   GOOGLE_DATA_REFRESH_TOKEN?: string;
@@ -22,13 +25,7 @@ type OAuthPayload = {
   scope?: string;
 };
 
-const REQUIRED: Array<keyof Env> = [
-  "GOOGLE_DATA_CLIENT_ID",
-  "GOOGLE_DATA_CLIENT_SECRET",
-  "GOOGLE_DATA_REFRESH_TOKEN",
-  "GOOGLE_CLOUD_PROJECT_ID",
-  "MCP_BEARER_TOKEN"
-];
+const GOOGLE_REQUIRED: Array<keyof Env> = ["GOOGLE_DATA_CLIENT_ID", "GOOGLE_DATA_CLIENT_SECRET", "GOOGLE_DATA_REFRESH_TOKEN", "GOOGLE_CLOUD_PROJECT_ID"];
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -37,19 +34,22 @@ export default {
       const origin = url.origin;
 
       if (url.pathname === "/" || url.pathname === "/health") {
-        const missing = REQUIRED.filter((key) => !env[key]);
-        const probe = url.searchParams.get("probe") === "google" && missing.length === 0
-          ? await probeGoogle(env)
-          : undefined;
+        const missingGoogle = GOOGLE_REQUIRED.filter((key) => !env[key]);
+        const probeTarget = url.searchParams.get("probe");
+        const googleProbe = probeTarget === "google" && missingGoogle.length === 0 ? await probeGoogle(env) : undefined;
+        const cloudflareProbe = probeTarget === "cloudflare" ? await cloudflareFromEnv(env).probe() : undefined;
         return json({
-          ok: missing.length === 0,
+          ok: Boolean(env.MCP_BEARER_TOKEN && env.DB && env.FILES),
           service: "ghco-data-mcp",
-          mode: "read-write-controlled",
+          mode: "cloudflare-primary-google-optional",
           endpoint: `${origin}/mcp`,
+          primaryStorage: { database: "D1/ghco-operacao", files: "R2/ghco-data-files", catalog: "Basin active" },
           projectId: env.GOOGLE_CLOUD_PROJECT_ID,
           defaultDataset: env.GOOGLE_BIGQUERY_DATASET ?? "ghco_operacao",
-          probe,
-          missingSecrets: missing
+          probe: googleProbe ?? cloudflareProbe,
+          googleConfigured: missingGoogle.length === 0,
+          missingGoogleSecrets: missingGoogle,
+          missingSecrets: env.MCP_BEARER_TOKEN ? [] : ["MCP_BEARER_TOKEN"]
         });
       }
 
@@ -86,10 +86,9 @@ export default {
 
       const authError = await requireBearer(request, env);
       if (authError) return authError;
-      const missing = REQUIRED.filter((key) => !env[key]);
-      if (missing.length) return json({ error: "Configuracao Google ausente.", missingSecrets: missing }, 503);
+      if (!env.DB || !env.FILES) return json({ error: "Bindings Cloudflare ausentes." }, 503);
 
-      const server = createDataMcpServer(clientFromEnv(env));
+      const server = createDataMcpServer(clientFromEnv(env), cloudflareFromEnv(env));
       const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: false });
       await server.connect(transport);
       return transport.handleRequest(request);
@@ -110,6 +109,15 @@ function clientFromEnv(env: Env): GoogleDataClient {
     location: env.GOOGLE_BIGQUERY_LOCATION ?? "southamerica-east1",
     defaultDataset: env.GOOGLE_BIGQUERY_DATASET ?? "ghco_operacao"
   });
+}
+
+function cloudflareFromEnv(env: Env): CloudflareDataClient {
+  return new CloudflareDataClient(
+    env.DB,
+    env.FILES,
+    "https://catalog.cloudflarestorage.com/b174b77b3f222f4b36461064267baea3/ghco-data-files",
+    "b174b77b3f222f4b36461064267baea3_ghco-data-files"
+  );
 }
 
 async function probeGoogle(env: Env): Promise<Record<string, unknown>> {

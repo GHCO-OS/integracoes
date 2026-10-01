@@ -115,3 +115,15 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Testes reais aprovados: autenticação MCP, listagem de ferramentas, criação do dataset, consulta SQL, listagem de ativos Looker Studio e simulações de catálogo/importação.
 - Health final: `ok=true`, BigQuery e Looker Studio alcançáveis, sem secrets ausentes.
 - Cloudflare Version ID: `7e804c97-789f-44b1-a9c4-2f9e031b4df9`.
+
+## GHCO Data MCP migrado para Cloudflare em 2026-10-01
+
+- Armazenamento principal migrado de BigQuery para Cloudflare, sem alterar o endpoint MCP já cadastrado.
+- D1 `ghco-operacao` criado com coleções flexíveis, registros JSON, catálogo de fontes e auditoria.
+- R2 `ghco-data-files` criado para arquivos, imagens, documentos e importações.
+- Basin Catalog ativado no bucket R2; nenhuma expiração automática de snapshots foi configurada.
+- Upload e download em partes habilitados para arquivos pesados.
+- BigQuery e Looker Studio preservados como integrações opcionais e origem de migração.
+- 35 ferramentas publicadas; testes reais de escrita/leitura D1 e R2 aprovados.
+- Health final: D1, R2 e Basin alcançáveis, sem secrets ausentes.
+- Cloudflare Version ID: `b22075a8-41e1-44d0-9080-90ff9f5c1ebf`.
