@@ -103,3 +103,15 @@ O código migrado ainda precisa ser reconciliado com as versões ativas do Cloud
 - Sonda real após a publicação: Merchant e Business Profile configurados e alcançáveis.
 - 12 testes automatizados aprovados, incluindo criação simulada de produto e atualização simulada de cardápio.
 - Cloudflare Version ID: `fee292f5-fef5-40f7-a676-b6b79cdef454`.
+
+## GHCO Data MCP publicado em 2026-10-01
+
+- Novo Worker `ghco-data-mcp` para substituir planilhas operacionais por uma base central no BigQuery.
+- Domínio MCP: `https://data-mcp.cuiabar.com/mcp`.
+- Projeto Google Cloud: `meucuiabar`; dataset inicial: `ghco_operacao`, região `southamerica-east1`.
+- BigQuery, Google Drive somente leitura e Data Studio/Looker Studio autorizados por OAuth dedicado.
+- Ferramentas de consulta, criação de datasets/tabelas/views, importação JSON, migração de Google Sheets, catálogo de fontes e administração limitada de ativos do Looker Studio.
+- Escritas simulam por padrão e exigem `CONFIRM_GHCO_DATA_WRITE`; exclusões exigem `CONFIRM_GHCO_DATA_DELETE`.
+- Testes reais aprovados: autenticação MCP, listagem de ferramentas, criação do dataset, consulta SQL, listagem de ativos Looker Studio e simulações de catálogo/importação.
+- Health final: `ok=true`, BigQuery e Looker Studio alcançáveis, sem secrets ausentes.
+- Cloudflare Version ID: `7e804c97-789f-44b1-a9c4-2f9e031b4df9`.

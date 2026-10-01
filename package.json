@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "workspaces": [
+    "services/google/ghco-data-mcp",
     "services/google/google-ads-mcp",
     "services/meta/meta-ads-actions",
     "services/meta/meta-pub"

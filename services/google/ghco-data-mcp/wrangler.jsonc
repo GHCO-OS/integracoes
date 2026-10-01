@@ -1,0 +1,16 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ghco-data-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "routes": [
+    { "pattern": "data-mcp.cuiabar.com", "custom_domain": true }
+  ],
+  "vars": {
+    "GOOGLE_CLOUD_PROJECT_ID": "meucuiabar",
+    "GOOGLE_BIGQUERY_LOCATION": "southamerica-east1",
+    "GOOGLE_BIGQUERY_DATASET": "ghco_operacao"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@ghco/data-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test src/*.test.ts",
+    "deploy": "wrangler deploy -c wrangler.jsonc",
+    "oauth:google": "node scripts/google-data-oauth-helper.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "wrangler": "^4.146.0"
+  },
+  "engines": { "node": ">=20" }
+}
